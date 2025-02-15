@@ -4,7 +4,7 @@ import Script from 'next/script';
 import WalletCard from '../components/WalletCard';
 import TransactionHistory from '../components/TransactionHistory';
 import BottomNavigation from '../components/BottomNavigation';
-import { getWallet, getTransactions } from '../lib/api';
+import { initWallet, getBalance, getTransactions } from '../lib/ton';
 
 interface WalletData {
   balance: number;
@@ -27,6 +27,7 @@ declare global {
         initData: string;
         ready: () => void;
         expand: () => void;
+        showAlert: (message: string) => void;
       };
     };
   }
@@ -40,7 +41,13 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+    if (typeof window !== 'undefined') {
+      if (!window.Telegram?.WebApp) {
+        setError('Telegram WebApp не инициализирован');
+        setLoading(false);
+        return;
+      }
+
       // Расширяем веб-приложение на весь экран
       window.Telegram.WebApp.expand();
       
@@ -48,46 +55,60 @@ export default function Home() {
       window.Telegram.WebApp.ready();
 
       const initData = window.Telegram.WebApp.initData;
-      if (initData) {
-        Promise.all([
-          getWallet(initData),
-          getTransactions(initData)
-        ])
-          .then(([walletData, txData]) => {
-            setWallet(walletData);
-            setTransactions(txData);
-          })
-          .catch(err => {
-            console.error('Error fetching data:', err);
-            setError('Ошибка загрузки данных');
-          })
-          .finally(() => setLoading(false));
-      } else {
-        setError('Ошибка инициализации Telegram WebApp');
+      if (!initData) {
+        setError('Отсутствуют данные инициализации Telegram WebApp');
         setLoading(false);
+        return;
       }
+
+      // Инициализируем кошелек
+      initWallet(initData)
+        .then(async (walletData) => {
+          if (!walletData) {
+            throw new Error('Не удалось создать кошелек');
+          }
+
+          // Получаем баланс и транзакции
+          const [balanceData, txData] = await Promise.all([
+            getBalance(walletData.address),
+            getTransactions(walletData.address)
+          ]);
+
+          setWallet({
+            address: walletData.address,
+            ...balanceData
+          });
+          setTransactions(txData);
+        })
+        .catch(err => {
+          console.error('Error:', err);
+          setError(err.message || 'Ошибка инициализации кошелька');
+        })
+        .finally(() => setLoading(false));
     }
   }, []);
 
   const handleSend = () => {
-    // TODO: Implement send functionality
-    console.log('Send clicked');
+    window.Telegram?.WebApp?.showAlert('Функция отправки в разработке');
   };
 
   const handleReceive = () => {
-    // TODO: Implement receive functionality
-    console.log('Receive clicked');
+    if (wallet) {
+      navigator.clipboard.writeText(wallet.address)
+        .then(() => window.Telegram?.WebApp?.showAlert('Адрес скопирован в буфер обмена'))
+        .catch(() => window.Telegram?.WebApp?.showAlert('Не удалось скопировать адрес'));
+    }
   };
 
   const handleQRCode = () => {
-    // TODO: Implement QR code functionality
-    console.log('QR code clicked');
+    window.Telegram?.WebApp?.showAlert('Функция QR-кода в разработке');
   };
 
   if (error) {
     return (
       <Container size="sm" py="xl">
-        <Text c="red" ta="center">{error}</Text>
+        <Text c="red" ta="center" mb="md">Произошла ошибка</Text>
+        <Text c="dimmed" size="sm" ta="center">{error}</Text>
       </Container>
     );
   }
