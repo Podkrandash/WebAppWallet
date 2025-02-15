@@ -18,6 +18,12 @@ interface WalletData {
   encryptedKey: string;
 }
 
+interface BotWalletResponse {
+  address: string;
+  balance: number;
+  usdValue: string;
+}
+
 export interface Transaction {
   type: 'deposit' | 'withdrawal';
   amount: number;
@@ -28,41 +34,31 @@ export interface Transaction {
 
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
-    // Проверяем, есть ли уже кошелек
+    // Проверяем, есть ли уже кошелек в локальном хранилище
     const existingWallet = await storage.getItem<WalletData>('wallet');
     if (existingWallet) {
       return existingWallet;
     }
 
-    // Создаем новый кошелек
-    const seed = await getSecureRandomBytes(32);
-    const keyPair = keyPairFromSeed(seed);
-    const wallet = WalletContractV4.create({ 
-      publicKey: keyPair.publicKey,
-      workchain: 0 
+    // Получаем данные кошелька от бота
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wallet`, {
+      headers: {
+        'X-Telegram-Init-Data': initData
+      }
     });
 
-    // Шифруем приватный ключ с помощью initData как ключа
-    const encoder = new TextEncoder();
-    const encryptedKey = await crypto.subtle.encrypt(
-      {
-        name: 'AES-GCM',
-        iv: encoder.encode(initData.slice(0, 12))
-      },
-      await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(initData),
-        { name: 'AES-GCM' },
-        false,
-        ['encrypt']
-      ),
-      keyPair.secretKey
-    );
+    if (!response.ok) {
+      throw new Error('Не удалось получить данные кошелька от бота');
+    }
 
+    const botWallet: BotWalletResponse = await response.json();
+
+    // Создаем объект WalletData на основе данных от бота
     const walletData: WalletData = {
-      address: wallet.address.toString(),
-      publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
-      encryptedKey: Buffer.from(encryptedKey).toString('hex')
+      address: botWallet.address,
+      // Эти данные будут использоваться только для просмотра
+      publicKey: '', // Публичный ключ не нужен для просмотра
+      encryptedKey: '' // Приватный ключ остается на сервере
     };
 
     // Сохраняем данные кошелька
@@ -71,7 +67,7 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
     return walletData;
   } catch (error) {
     console.error('Error initializing wallet:', error);
-    return null;
+    throw new Error('Не удалось синхронизироваться с кошельком бота');
   }
 }
 

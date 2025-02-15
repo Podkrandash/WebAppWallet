@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Container, LoadingOverlay, Stack, Text } from '@mantine/core';
+import { Container, LoadingOverlay, Stack, Text, Alert } from '@mantine/core';
+import { IconAlertCircle } from '@tabler/icons-react';
 import Script from 'next/script';
 import WalletCard from '../components/WalletCard';
 import TransactionHistory from '../components/TransactionHistory';
@@ -28,6 +29,7 @@ declare global {
         ready: () => void;
         expand: () => void;
         showAlert: (message: string) => void;
+        close: () => void;
       };
     };
   }
@@ -43,7 +45,7 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (!window.Telegram?.WebApp) {
-        setError('Telegram WebApp не инициализирован');
+        setError('Приложение должно быть открыто из Telegram');
         setLoading(false);
         return;
       }
@@ -65,24 +67,31 @@ export default function Home() {
       initWallet(initData)
         .then(async (walletData) => {
           if (!walletData) {
-            throw new Error('Не удалось создать кошелек');
+            throw new Error('Не удалось получить данные кошелька');
           }
 
-          // Получаем баланс и транзакции
-          const [balanceData, txData] = await Promise.all([
-            getBalance(walletData.address),
-            getTransactions(walletData.address)
-          ]);
+          try {
+            // Получаем баланс и транзакции
+            const [balanceData, txData] = await Promise.all([
+              getBalance(walletData.address),
+              getTransactions(walletData.address)
+            ]);
 
-          setWallet({
-            address: walletData.address,
-            ...balanceData
-          });
-          setTransactions(txData);
+            setWallet({
+              address: walletData.address,
+              ...balanceData
+            });
+            setTransactions(txData);
+          } catch (err) {
+            console.error('Error fetching wallet data:', err);
+            setError('Ошибка при получении данных кошелька');
+          }
         })
         .catch(err => {
           console.error('Error:', err);
           setError(err.message || 'Ошибка инициализации кошелька');
+          // Закрываем веб-приложение при критической ошибке
+          window.Telegram?.WebApp?.close();
         })
         .finally(() => setLoading(false));
     }
@@ -107,8 +116,9 @@ export default function Home() {
   if (error) {
     return (
       <Container size="sm" py="xl">
-        <Text c="red" ta="center" mb="md">Произошла ошибка</Text>
-        <Text c="dimmed" size="sm" ta="center">{error}</Text>
+        <Alert icon={<IconAlertCircle size={16} />} title="Ошибка" color="red">
+          {error}
+        </Alert>
       </Container>
     );
   }
