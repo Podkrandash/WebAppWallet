@@ -1,5 +1,5 @@
-import { Card, Title, Text, Button, Group, CopyButton, Stack, ActionIcon } from '@mantine/core';
-import { IconSend, IconDownload, IconQrcode } from '@tabler/icons-react';
+import { Card, Title, Text, Button, Group, CopyButton, Stack, ActionIcon, Box, Center, Paper } from '@mantine/core';
+import { IconSend, IconDownload, IconQrcode, IconCopy } from '@tabler/icons-react';
 
 interface WalletCardProps {
   balance: number;
@@ -19,45 +19,92 @@ export default function WalletCard({
   onQRCode 
 }: WalletCardProps) {
   return (
-    <Card shadow="sm" p="lg" radius="md" withBorder>
-      <Stack gap="md">
-        <Group justify="space-between" align="flex-start">
-          <Stack gap={4}>
-            <Text size="sm" c="dimmed">Баланс</Text>
-            <Title order={2}>{balance.toFixed(2)} TON</Title>
-            <Text size="sm" c="dimmed">≈ ${usdValue}</Text>
-          </Stack>
-          <Group>
-            <ActionIcon variant="light" color="blue" size="lg" onClick={onSend}>
-              <IconSend size={20} />
-            </ActionIcon>
-            <ActionIcon variant="light" color="green" size="lg" onClick={onReceive}>
-              <IconDownload size={20} />
-            </ActionIcon>
-            <ActionIcon variant="light" color="gray" size="lg" onClick={onQRCode}>
-              <IconQrcode size={20} />
-            </ActionIcon>
-          </Group>
-        </Group>
+    <Box px="md">
+      <Paper 
+        radius="xl" 
+        p="xl" 
+        style={{ 
+          background: 'linear-gradient(135deg, #0A84FF 0%, #0066CC 100%)',
+          color: 'white',
+          marginBottom: '1rem'
+        }}
+      >
+        <Stack align="center" gap="xs">
+          <Text size="sm" fw={500} c="white" opacity={0.8}>Баланс</Text>
+          <Title order={1} style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>
+            {balance.toFixed(2)} TON
+          </Title>
+          <Text size="sm" c="white" opacity={0.8}>≈ ${usdValue}</Text>
+        </Stack>
+      </Paper>
 
-        <Group justify="space-between" align="center">
-          <Text size="sm" style={{ wordBreak: 'break-all' }}>
-            {address.slice(0, 6)}...{address.slice(-4)}
-          </Text>
-          <CopyButton value={address}>
-            {({ copied, copy }) => (
-              <Button 
-                variant="light" 
-                color={copied ? 'teal' : 'blue'} 
-                size="xs"
-                onClick={copy}
-              >
-                {copied ? 'Скопировано!' : 'Копировать'}
-              </Button>
-            )}
-          </CopyButton>
-        </Group>
-      </Stack>
-    </Card>
+      <Paper 
+        radius="lg" 
+        p="md" 
+        withBorder 
+        style={{ 
+          background: 'rgba(255, 255, 255, 0.95)',
+          marginBottom: '1.5rem'
+        }}
+      >
+        <Stack gap="md" align="center">
+          <Text size="sm" c="dimmed" fw={500}>Адрес кошелька</Text>
+          <Group gap="xs" align="center">
+            <Text size="sm" style={{ fontFamily: 'monospace' }}>
+              {address.slice(0, 6)}...{address.slice(-4)}
+            </Text>
+            <CopyButton value={address}>
+              {({ copied, copy }) => (
+                <ActionIcon 
+                  variant="subtle" 
+                  color={copied ? 'teal' : 'gray'} 
+                  onClick={copy}
+                  size="sm"
+                >
+                  <IconCopy size={16} />
+                </ActionIcon>
+              )}
+            </CopyButton>
+          </Group>
+        </Stack>
+      </Paper>
+
+      <Group grow gap="md">
+        <Button
+          variant="light"
+          color="blue"
+          radius="xl"
+          size="lg"
+          leftSection={<IconSend size={20} />}
+          onClick={onSend}
+          style={{ flex: 1 }}
+        >
+          Отправить
+        </Button>
+        <Button
+          variant="light"
+          color="teal"
+          radius="xl"
+          size="lg"
+          leftSection={<IconDownload size={20} />}
+          onClick={onReceive}
+          style={{ flex: 1 }}
+        >
+          Получить
+        </Button>
+      </Group>
+      <Button
+        variant="light"
+        color="gray"
+        radius="xl"
+        size="lg"
+        leftSection={<IconQrcode size={20} />}
+        onClick={onQRCode}
+        fullWidth
+        mt="md"
+      >
+        QR-код
+      </Button>
+    </Box>
   );
 } 
