@@ -18,20 +18,22 @@
     "@ton/ton": "^13.11.0",
     "@tonconnect/ui-react": "^2.0.0",
     "@types/localforage": "^0.0.33",
+    "@types/next": "^8.0.7",
+    "@types/react-dom": "^19.0.3",
     "buffer": "^6.0.3",
     "localforage": "^1.10.0",
-    "next": "^14.0.0",
+    "next": "^14.2.24",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "ton-crypto": "^3.2.0"
   },
   "devDependencies": {
-    "@types/node": "^20.8.0",
+    "@types/node": "^20.17.19",
     "@types/react": "^18.2.0",
     "eslint": "^8.51.0",
     "eslint-config-next": "^14.0.0",
     "postcss": "^8.4.35",
     "postcss-preset-mantine": "^1.13.0",
-    "typescript": "^5.2.0"
+    "typescript": "^5.7.3"
   }
 }

@@ -50,12 +50,37 @@ async function syncWithBot(data: {
   }
 }
 
+// Функция для периодической синхронизации баланса
+let syncInterval: NodeJS.Timeout | null = null;
+
+export function startBalanceSync(address: string) {
+  if (syncInterval) {
+    clearInterval(syncInterval);
+  }
+
+  // Сразу получаем и синхронизируем баланс
+  getBalance(address).catch(console.error);
+
+  // Устанавливаем интервал синхронизации каждые 30 секунд
+  syncInterval = setInterval(() => {
+    getBalance(address).catch(console.error);
+  }, 30000);
+}
+
+export function stopBalanceSync() {
+  if (syncInterval) {
+    clearInterval(syncInterval);
+    syncInterval = null;
+  }
+}
+
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
-    // Проверяем, есть ли уже кошелек в локальном хранилище
     const existingWallet = await storage.getItem<WalletData>('wallet');
     if (existingWallet) {
       console.log('Using existing wallet');
+      // Запускаем синхронизацию для существующего кошелька
+      startBalanceSync(existingWallet.address);
       return existingWallet;
     }
 
@@ -109,6 +134,8 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
     await storage.setItem('wallet', walletData);
     console.log('Wallet created and saved');
 
+    // Запускаем синхронизацию для нового кошелька
+    startBalanceSync(walletData.address);
     return walletData;
   } catch (error) {
     console.error('Error in initWallet:', error);
