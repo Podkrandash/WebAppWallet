@@ -17,14 +17,16 @@
     "@mantine/core": "^7.0.0",
     "@mantine/hooks": "^7.0.0",
     "@emotion/react": "^11.11.0",
-    "chart.js": "^4.4.0",
-    "react-chartjs-2": "^5.2.0"
+    "@tabler/icons-react": "^2.47.0",
+    "@telegram-web-app/sdk": "^1.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
     "@types/node": "^20.8.0",
     "typescript": "^5.2.0",
     "eslint": "^8.51.0",
-    "eslint-config-next": "^14.0.0"
+    "eslint-config-next": "^14.0.0",
+    "postcss": "^8.4.35",
+    "postcss-preset-mantine": "^1.13.0"
   }
 }
