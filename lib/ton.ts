@@ -2,22 +2,23 @@ import { TonClient, Address, fromNano, toNano, beginCell, internal } from '@ton/
 import { getSecureRandomBytes, KeyPair, keyPairFromSeed } from '@ton/crypto';
 import { WalletContractV4 } from '@ton/ton';
 import localforage from 'localforage';
+import { verifyTelegramWebAppData } from '../utils/telegram';
 
 const client = new TonClient({
   endpoint: 'https://toncenter.com/api/v2/jsonRPC'
 });
 
-// Инициализация хранилища
-const storage = localforage.createInstance({
-  name: 'ton_wallet'
+// Инициализация хранилища с префиксом telegramId
+const getStorage = (telegramId: string) => localforage.createInstance({
+  name: `ton_wallet_${telegramId}`
 });
 
 interface WalletData {
   address: string;
   publicKey: string;
   encryptedKey: string;
-  iv: string;
   seed?: string;
+  telegramId: string; // Добавляем привязку к Telegram ID
 }
 
 interface BotWalletResponse {
@@ -38,6 +39,7 @@ export interface Transaction {
 async function syncWithBot(data: {
   type: 'balance_update' | 'transaction',
   address: string,
+  telegramId: string, // Добавляем Telegram ID в данные синхронизации
   balance?: number,
   transaction?: {
     type: 'deposit' | 'withdrawal',
@@ -51,37 +53,70 @@ async function syncWithBot(data: {
 }
 
 // Функция для периодической синхронизации баланса
-let syncInterval: NodeJS.Timeout | null = null;
+const syncIntervals = new Map<string, NodeJS.Timeout>();
 
-export function startBalanceSync(address: string) {
-  if (syncInterval) {
-    clearInterval(syncInterval);
+export function startBalanceSync(address: string, telegramId: string) {
+  if (syncIntervals.has(address)) {
+    clearInterval(syncIntervals.get(address)!);
   }
 
+  const storage = getStorage(telegramId);
+  
   // Сразу получаем и синхронизируем баланс
   getBalance(address).catch(console.error);
 
-  // Устанавливаем интервал синхронизации каждые 30 секунд
-  syncInterval = setInterval(() => {
-    getBalance(address).catch(console.error);
+  const interval = setInterval(async () => {
+    try {
+      const { balance } = await getBalance(address);
+      
+      // Получаем предыдущий баланс из локального хранилища
+      const prevBalance = await storage.getItem<number>(`balance_${address}`);
+      
+      // Если баланс изменился, синхронизируем с ботом
+      if (prevBalance !== balance) {
+        await storage.setItem(`balance_${address}`, balance);
+        await syncWithBot({
+          type: 'balance_update',
+          address,
+          telegramId,
+          balance
+        });
+      }
+    } catch (error) {
+      console.error('Error in balance sync:', error);
+    }
   }, 30000);
+
+  syncIntervals.set(address, interval);
 }
 
-export function stopBalanceSync() {
-  if (syncInterval) {
-    clearInterval(syncInterval);
-    syncInterval = null;
+export function stopBalanceSync(address: string) {
+  if (syncIntervals.has(address)) {
+    clearInterval(syncIntervals.get(address)!);
+    syncIntervals.delete(address);
   }
 }
 
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
+    // Проверяем и получаем данные пользователя Telegram
+    const telegramUser = await verifyTelegramWebAppData(initData);
+    if (!telegramUser) {
+      throw new Error('Invalid Telegram WebApp data');
+    }
+
+    const telegramId = telegramUser.id.toString();
+    const storage = getStorage(telegramId);
+
+    // Проверяем, есть ли уже кошелек в локальном хранилище
     const existingWallet = await storage.getItem<WalletData>('wallet');
     if (existingWallet) {
       console.log('Using existing wallet');
-      // Запускаем синхронизацию для существующего кошелька
-      startBalanceSync(existingWallet.address);
-      return existingWallet;
+      // Проверяем, что кошелек принадлежит этому пользователю
+      if (existingWallet.telegramId === telegramId) {
+        startBalanceSync(existingWallet.address, telegramId);
+        return existingWallet;
+      }
     }
 
     console.log('Creating new wallet');
@@ -93,32 +128,20 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       workchain: 0 
     });
 
-    // Создаем ключ шифрования из initData
-    const encoder = new TextEncoder();
-    const keyMaterial = await crypto.subtle.digest(
-      'SHA-256',
-      encoder.encode(initData)
-    );
-
-    // Создаем ключ для шифрования
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyMaterial,
-      { name: 'AES-GCM' },
-      false,
-      ['encrypt']
-    );
-
-    // Генерируем IV
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-
     // Шифруем приватный ключ
+    const encoder = new TextEncoder();
     const encryptedKey = await crypto.subtle.encrypt(
       {
         name: 'AES-GCM',
-        iv: iv
+        iv: encoder.encode(initData.slice(0, 12))
       },
-      key,
+      await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(initData),
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt']
+      ),
       keyPair.secretKey
     );
 
@@ -126,8 +149,8 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       address: wallet.address.toString(),
       publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
       encryptedKey: Buffer.from(encryptedKey).toString('hex'),
-      iv: Buffer.from(iv).toString('hex'),
-      seed: Buffer.from(seed).toString('hex')
+      seed: Buffer.from(seed).toString('hex'),
+      telegramId // Сохраняем Telegram ID
     };
 
     // Сохраняем данные кошелька
@@ -135,7 +158,16 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
     console.log('Wallet created and saved');
 
     // Запускаем синхронизацию для нового кошелька
-    startBalanceSync(walletData.address);
+    startBalanceSync(walletData.address, telegramId);
+
+    // Синхронизируем с ботом новый кошелек
+    await syncWithBot({
+      type: 'balance_update',
+      address: walletData.address,
+      telegramId,
+      balance: 0
+    });
+
     return walletData;
   } catch (error) {
     console.error('Error in initWallet:', error);
@@ -147,17 +179,10 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
   try {
     const address = Address.parse(addressStr);
     const balance = await client.getBalance(address);
+    const balanceInTon = Number(fromNano(balance));
     
     // Получаем курс TON/USD (в реальном приложении нужно использовать API биржи)
     const tonPrice = 3.5; // Пример фиксированной цены
-    const balanceInTon = Number(fromNano(balance));
-    
-    // Синхронизируем с ботом
-    await syncWithBot({
-      type: 'balance_update',
-      address: addressStr,
-      balance: balanceInTon
-    });
     
     return {
       balance: balanceInTon,
@@ -215,38 +240,38 @@ export async function sendTON(
   initData: string
 ): Promise<boolean> {
   try {
+    // Проверяем и получаем данные пользователя Telegram
+    const telegramUser = await verifyTelegramWebAppData(initData);
+    if (!telegramUser) {
+      throw new Error('Invalid Telegram WebApp data');
+    }
+
+    const telegramId = telegramUser.id.toString();
+    const storage = getStorage(telegramId);
+
     const walletData = await storage.getItem<WalletData>('wallet');
     if (!walletData) throw new Error('Wallet not found');
 
-    // Создаем ключ расшифровки из initData
-    const encoder = new TextEncoder();
-    const keyMaterial = await crypto.subtle.digest(
-      'SHA-256',
-      encoder.encode(initData)
-    );
-
-    // Создаем ключ для расшифровки
-    const key = await crypto.subtle.importKey(
-      'raw',
-      keyMaterial,
-      { name: 'AES-GCM' },
-      false,
-      ['decrypt']
-    );
-
     // Расшифровываем приватный ключ
+    const encoder = new TextEncoder();
     const secretKey = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
-        iv: Buffer.from(walletData.iv, 'hex')
+        iv: encoder.encode(initData.slice(0, 12))
       },
-      key,
+      await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(initData),
+        { name: 'AES-GCM' },
+        false,
+        ['decrypt']
+      ),
       Buffer.from(walletData.encryptedKey, 'hex')
     );
 
     const keyPair: KeyPair = {
       publicKey: Buffer.from(walletData.publicKey, 'hex'),
-      secretKey: Buffer.from(new Uint8Array(secretKey))
+      secretKey: Buffer.from(secretKey)
     };
 
     const wallet = WalletContractV4.create({
@@ -276,6 +301,7 @@ export async function sendTON(
     await syncWithBot({
       type: 'transaction',
       address: fromAddressStr,
+      telegramId,
       transaction: {
         type: 'withdrawal',
         amount: amount,
