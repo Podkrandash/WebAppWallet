@@ -1,4 +1,4 @@
-import { TonClient, Address, fromNano, toNano, beginCell } from '@ton/ton';
+import { TonClient, Address, fromNano, toNano, beginCell, internal } from '@ton/ton';
 import { getSecureRandomBytes, KeyPair, keyPairFromSeed } from '@ton/crypto';
 import { WalletContractV4 } from '@ton/ton';
 import localforage from 'localforage';
@@ -177,17 +177,15 @@ export async function sendTON(
     await contract.sendTransfer({
       secretKey: keyPair.secretKey,
       seqno,
-      messages: [{
-        info: {
-          type: 'internal',
-          dest: toAddress,
-          value: { coins: toNano(amount.toString()) },
+      timeout: 60000,
+      messages: [
+        internal({
+          to: toAddress,
+          value: toNano(amount.toString()),
           bounce: false,
-          ihrDisabled: true,
-          bounced: false,
           body: beginCell().endCell()
-        }
-      }]
+        })
+      ]
     });
 
     return true;
