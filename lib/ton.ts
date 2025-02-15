@@ -67,6 +67,9 @@ async function syncWithBot(data: {
 // Функция для периодической синхронизации баланса
 const syncIntervals = new Map<string, NodeJS.Timeout>();
 
+// Добавляем кэш для баланса
+const balanceCache = new Map<string, { balance: number; timestamp: number }>();
+
 export function startBalanceSync(address: string, telegramId: string) {
   if (syncIntervals.has(address)) {
     clearInterval(syncIntervals.get(address)!);
@@ -97,7 +100,7 @@ export function startBalanceSync(address: string, telegramId: string) {
     } catch (error) {
       console.error('Error in balance sync:', error);
     }
-  }, 30000);
+  }, 60000); // Увеличиваем интервал до 1 минуты
 
   syncIntervals.set(address, interval);
 }
@@ -203,12 +206,28 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
 
 export async function getBalance(addressStr: string): Promise<{ balance: number; usdValue: string }> {
   try {
+    // Проверяем кэш
+    const cached = balanceCache.get(addressStr);
+    const now = Date.now();
+    if (cached && now - cached.timestamp < 30000) { // Кэш на 30 секунд
+      return {
+        balance: cached.balance,
+        usdValue: (cached.balance * 3.5).toFixed(2) // Используем фиксированный курс
+      };
+    }
+
     const address = Address.parse(addressStr);
     const balance = await client.getBalance(address);
     const balanceInTon = Number(fromNano(balance));
     
-    // Получаем курс TON/USD (в реальном приложении нужно использовать API биржи)
-    const tonPrice = 3.5; // Пример фиксированной цены
+    // Обновляем кэш
+    balanceCache.set(addressStr, {
+      balance: balanceInTon,
+      timestamp: now
+    });
+    
+    // Используем фиксированный курс TON/USD
+    const tonPrice = 3.5;
     
     return {
       balance: balanceInTon,
@@ -216,6 +235,14 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
     };
   } catch (error) {
     console.error('Error getting balance:', error);
+    // Возвращаем кэшированные данные в случае ошибки
+    const cached = balanceCache.get(addressStr);
+    if (cached) {
+      return {
+        balance: cached.balance,
+        usdValue: (cached.balance * 3.5).toFixed(2)
+      };
+    }
     throw error;
   }
 }
