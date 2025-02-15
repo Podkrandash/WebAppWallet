@@ -5,10 +5,12 @@ const prisma = new PrismaClient();
 export interface User {
   id: number;
   telegramId: string;
-  username?: string;
-  firstName?: string;
-  lastName?: string;
+  username: string | undefined;
+  firstName: string | undefined;
+  lastName: string | undefined;
   wallets?: Wallet[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface Wallet {
@@ -18,6 +20,32 @@ export interface Wallet {
   publicKey: string;
   encryptedKey: string;
   balance: number;
+  currency: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+function mapPrismaUserToUser(prismaUser: any): User {
+  return {
+    id: prismaUser.id,
+    telegramId: prismaUser.telegramId,
+    username: prismaUser.username ?? undefined,
+    firstName: prismaUser.firstName ?? undefined,
+    lastName: prismaUser.lastName ?? undefined,
+    wallets: prismaUser.wallets?.map((wallet: any) => ({
+      id: wallet.id,
+      userId: wallet.userId,
+      address: wallet.address,
+      publicKey: wallet.publicKey,
+      encryptedKey: wallet.encryptedKey,
+      balance: wallet.balance,
+      currency: wallet.currency,
+      createdAt: wallet.createdAt,
+      updatedAt: wallet.updatedAt
+    })),
+    createdAt: prismaUser.createdAt,
+    updatedAt: prismaUser.updatedAt
+  };
 }
 
 export async function getUserByTelegramId(telegramId: string): Promise<User | null> {
@@ -29,7 +57,7 @@ export async function getUserByTelegramId(telegramId: string): Promise<User | nu
       }
     });
 
-    return user;
+    return user ? mapPrismaUserToUser(user) : null;
   } catch (error) {
     console.error('Error getting user:', error);
     return null;
@@ -46,16 +74,16 @@ export async function createUser(data: {
     const user = await prisma.user.create({
       data: {
         telegramId: data.telegramId,
-        username: data.username,
-        firstName: data.firstName,
-        lastName: data.lastName
+        username: data.username ?? null,
+        firstName: data.firstName ?? null,
+        lastName: data.lastName ?? null
       },
       include: {
         wallets: true
       }
     });
 
-    return user;
+    return mapPrismaUserToUser(user);
   } catch (error) {
     console.error('Error creating user:', error);
     return null;
@@ -75,11 +103,22 @@ export async function createWallet(data: {
         address: data.address,
         publicKey: data.publicKey,
         encryptedKey: data.encryptedKey,
-        currency: 'TON'
+        currency: 'TON',
+        balance: 0
       }
     });
 
-    return wallet;
+    return {
+      id: wallet.id,
+      userId: wallet.userId,
+      address: wallet.address,
+      publicKey: wallet.publicKey,
+      encryptedKey: wallet.encryptedKey,
+      balance: wallet.balance,
+      currency: wallet.currency,
+      createdAt: wallet.createdAt,
+      updatedAt: wallet.updatedAt
+    };
   } catch (error) {
     console.error('Error creating wallet:', error);
     return null;
@@ -93,7 +132,17 @@ export async function updateWalletBalance(address: string, balance: number): Pro
       data: { balance }
     });
 
-    return wallet;
+    return {
+      id: wallet.id,
+      userId: wallet.userId,
+      address: wallet.address,
+      publicKey: wallet.publicKey,
+      encryptedKey: wallet.encryptedKey,
+      balance: wallet.balance,
+      currency: wallet.currency,
+      createdAt: wallet.createdAt,
+      updatedAt: wallet.updatedAt
+    };
   } catch (error) {
     console.error('Error updating wallet balance:', error);
     return null;
