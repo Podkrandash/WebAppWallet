@@ -16,17 +16,17 @@ interface TransactionHistoryProps {
 export default function TransactionHistory({ transactions }: TransactionHistoryProps) {
   if (transactions.length === 0) {
     return (
-      <Text align="center" c="dimmed" mt="xl">
+      <Text ta="center" c="dimmed" mt="xl">
         История транзакций пуста
       </Text>
     );
   }
 
   return (
-    <Stack spacing="md">
+    <Stack gap="md">
       {transactions.map((tx, index) => (
         <Card key={index} shadow="sm" p="md" radius="md" withBorder>
-          <Group position="apart">
+          <Group justify="space-between">
             <Group>
               {tx.type === 'deposit' ? (
                 <IconArrowDownLeft size={24} color="#40c057" />

@@ -17,8 +17,7 @@
     "@mantine/core": "^7.0.0",
     "@mantine/hooks": "^7.0.0",
     "@emotion/react": "^11.11.0",
-    "@tabler/icons-react": "^2.47.0",
-    "@telegram-web-app/sdk": "^1.0.0"
+    "@tabler/icons-react": "^2.47.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",

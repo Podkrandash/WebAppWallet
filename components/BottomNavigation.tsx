@@ -9,7 +9,7 @@ interface BottomNavigationProps {
 export default function BottomNavigation({ active, onNavigate }: BottomNavigationProps) {
   return (
     <Group 
-      position="apart" 
+      justify="space-between"
       p="md" 
       style={{ 
         position: 'fixed', 
@@ -24,7 +24,7 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
         onClick={() => onNavigate('wallet')}
         style={{ flex: 1 }}
       >
-        <Stack align="center" spacing={4}>
+        <Stack align="center" gap={4}>
           <IconWallet 
             size={24} 
             color={active === 'wallet' ? '#228be6' : '#868e96'} 
@@ -42,7 +42,7 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
         onClick={() => onNavigate('history')}
         style={{ flex: 1 }}
       >
-        <Stack align="center" spacing={4}>
+        <Stack align="center" gap={4}>
           <IconHistory 
             size={24} 
             color={active === 'history' ? '#228be6' : '#868e96'} 

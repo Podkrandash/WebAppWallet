@@ -20,9 +20,9 @@ export default function WalletCard({
 }: WalletCardProps) {
   return (
     <Card shadow="sm" p="lg" radius="md" withBorder>
-      <Stack spacing="md">
-        <Group position="apart" align="flex-start">
-          <Stack spacing={4}>
+      <Stack gap="md">
+        <Group justify="space-between" align="flex-start">
+          <Stack gap={4}>
             <Text size="sm" c="dimmed">Баланс</Text>
             <Title order={2}>{balance.toFixed(2)} TON</Title>
             <Text size="sm" c="dimmed">≈ ${usdValue}</Text>
@@ -40,7 +40,7 @@ export default function WalletCard({
           </Group>
         </Group>
 
-        <Group position="apart" align="center">
+        <Group justify="space-between" align="center">
           <Text size="sm" style={{ wordBreak: 'break-all' }}>
             {address.slice(0, 6)}...{address.slice(-4)}
           </Text>
