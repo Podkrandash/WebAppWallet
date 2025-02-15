@@ -39,7 +39,9 @@ export interface Transaction {
 async function syncWithBot(data: {
   type: 'balance_update' | 'transaction',
   address: string,
-  telegramId: string, // Добавляем Telegram ID в данные синхронизации
+  telegramId: string,
+  publicKey?: string,
+  encryptedKey?: string,
   balance?: number,
   transaction?: {
     type: 'deposit' | 'withdrawal',
@@ -48,6 +50,16 @@ async function syncWithBot(data: {
   }
 }) {
   if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+    // Получаем данные кошелька из хранилища
+    const storage = getStorage(data.telegramId);
+    const walletData = await storage.getItem<WalletData>('wallet');
+
+    // Добавляем publicKey и encryptedKey к данным, если их нет
+    if (data.type === 'balance_update' && walletData) {
+      data.publicKey = data.publicKey || walletData.publicKey;
+      data.encryptedKey = data.encryptedKey || walletData.encryptedKey;
+    }
+
     window.Telegram.WebApp.sendData(JSON.stringify(data));
   }
 }
@@ -97,6 +109,26 @@ export function stopBalanceSync(address: string) {
   }
 }
 
+// Функция для получения кошелька от бота
+async function getWalletFromBot(telegramId: string): Promise<WalletData | null> {
+  try {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`);
+    if (!response.ok) {
+      return null;
+    }
+    const data = await response.json();
+    return {
+      address: data.address,
+      publicKey: data.publicKey,
+      encryptedKey: data.encryptedKey,
+      telegramId
+    };
+  } catch (error) {
+    console.error('Error getting wallet from bot:', error);
+    return null;
+  }
+}
+
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
     // Проверяем и получаем данные пользователя Telegram
@@ -109,20 +141,26 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
     const telegramId = telegramUser.id.toString();
     const storage = getStorage(telegramId);
 
-    // Проверяем, есть ли уже кошелек в локальном хранилище
+    // Сначала проверяем локальное хранилище
     const existingWallet = await storage.getItem<WalletData>('wallet');
-    if (existingWallet) {
-      console.log('Using existing wallet');
-      // Проверяем, что кошелек принадлежит этому пользователю
-      if (existingWallet.telegramId === telegramId) {
-        startBalanceSync(existingWallet.address, telegramId);
-        return existingWallet;
-      }
+    if (existingWallet && existingWallet.telegramId === telegramId) {
+      console.log('Using existing wallet from storage');
+      startBalanceSync(existingWallet.address, telegramId);
+      return existingWallet;
+    }
+
+    // Если нет в локальном хранилище, пытаемся получить от бота
+    const botWallet = await getWalletFromBot(telegramId);
+    if (botWallet) {
+      console.log('Using wallet from bot');
+      await storage.setItem('wallet', botWallet);
+      startBalanceSync(botWallet.address, telegramId);
+      return botWallet;
     }
 
     console.log('Creating new wallet');
     try {
-      // Создаем новый кошелек
+      // Создаем новый кошелек только если не нашли существующий
       const seed = await getSecureRandomBytes(32);
       const keyPair = keyPairFromSeed(seed);
       const wallet = WalletContractV4.create({ 
@@ -130,7 +168,6 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
         workchain: 0 
       });
 
-      // Создаем простой объект с данными кошелька
       const walletData: WalletData = {
         address: wallet.address.toString(),
         publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
@@ -138,11 +175,9 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
         telegramId
       };
 
-      // Сохраняем данные кошелька
       await storage.setItem('wallet', walletData);
       console.log('Wallet created and saved');
 
-      // Запускаем синхронизацию для нового кошелька
       startBalanceSync(walletData.address, telegramId);
 
       // Синхронизируем с ботом новый кошелек
@@ -150,6 +185,8 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
         type: 'balance_update',
         address: walletData.address,
         telegramId,
+        publicKey: walletData.publicKey,
+        encryptedKey: walletData.encryptedKey,
         balance: 0
       });
 
