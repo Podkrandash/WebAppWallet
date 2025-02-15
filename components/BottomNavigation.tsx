@@ -1,5 +1,5 @@
 import { Group, UnstyledButton, Stack, Text } from '@mantine/core';
-import { IconWallet, IconHistory } from '@tabler/icons-react';
+import { IconWallet, IconClockHour4 } from '@tabler/icons-react';
 
 interface BottomNavigationProps {
   active: 'wallet' | 'history';
@@ -43,7 +43,7 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
         style={{ flex: 1 }}
       >
         <Stack align="center" gap={4}>
-          <IconHistory 
+          <IconClockHour4 
             size={24} 
             color={active === 'history' ? '#228be6' : '#868e96'} 
           />

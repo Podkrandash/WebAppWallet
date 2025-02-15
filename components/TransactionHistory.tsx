@@ -1,5 +1,5 @@
 import { Stack, Text, Card, Group } from '@mantine/core';
-import { IconArrowUpRight, IconArrowDownLeft } from '@tabler/icons-react';
+import { IconArrowUpRight, IconArrowDownRight } from '@tabler/icons-react';
 
 interface Transaction {
   type: 'deposit' | 'withdrawal';
@@ -29,7 +29,7 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
           <Group justify="space-between">
             <Group>
               {tx.type === 'deposit' ? (
-                <IconArrowDownLeft size={24} color="#40c057" />
+                <IconArrowDownRight size={24} color="#40c057" />
               ) : (
                 <IconArrowUpRight size={24} color="#fa5252" />
               )}

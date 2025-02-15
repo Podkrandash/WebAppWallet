@@ -1,5 +1,5 @@
 import { Card, Title, Text, Button, Group, CopyButton, Stack, ActionIcon } from '@mantine/core';
-import { IconSend, IconReceive, IconQrcode } from '@tabler/icons-react';
+import { IconSend, IconDownload, IconQrcode } from '@tabler/icons-react';
 
 interface WalletCardProps {
   balance: number;
@@ -32,7 +32,7 @@ export default function WalletCard({
               <IconSend size={20} />
             </ActionIcon>
             <ActionIcon variant="light" color="green" size="lg" onClick={onReceive}>
-              <IconReceive size={20} />
+              <IconDownload size={20} />
             </ActionIcon>
             <ActionIcon variant="light" color="gray" size="lg" onClick={onQRCode}>
               <IconQrcode size={20} />
