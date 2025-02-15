@@ -1,5 +1,8 @@
 {
   "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
   "builds": [
     {
       "src": "package.json",
@@ -12,6 +15,12 @@
       "dest": "/$1"
     }
   ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true
+    }
+  },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./",
   "env": {
     "NEXT_PUBLIC_API_URL": "https://earth-wallet-bot.vercel.app"
   }
