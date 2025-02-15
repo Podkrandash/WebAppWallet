@@ -30,6 +30,7 @@ declare global {
         expand: () => void;
         showAlert: (message: string) => void;
         close: () => void;
+        sendData: (data: string) => void;
       };
     };
   }
@@ -45,6 +46,7 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       if (!window.Telegram?.WebApp) {
+        console.error('Telegram WebApp не инициализирован');
         setError('Приложение должно быть открыто из Telegram');
         setLoading(false);
         return;
@@ -57,18 +59,38 @@ export default function Home() {
       window.Telegram.WebApp.ready();
 
       const initData = window.Telegram.WebApp.initData;
+      console.log('Raw initData:', initData); // Добавляем логирование raw initData
+
+      // Декодируем initData
+      try {
+        const params = new URLSearchParams(initData);
+        console.log('Parsed initData params:', {
+          user: params.get('user'),
+          auth_date: params.get('auth_date'),
+          hash: params.get('hash')
+        });
+      } catch (e) {
+        console.error('Error parsing initData:', e);
+      }
+
       if (!initData) {
+        console.error('Отсутствует initData');
         setError('Отсутствуют данные инициализации Telegram WebApp');
         setLoading(false);
         return;
       }
 
+      console.log('InitData:', initData); // Добавляем для отладки
+
       // Инициализируем кошелек
       initWallet(initData)
         .then(async (walletData) => {
           if (!walletData) {
+            console.error('Wallet data is null');
             throw new Error('Не удалось получить данные кошелька');
           }
+
+          console.log('Wallet data:', walletData); // Добавляем для отладки
 
           try {
             // Получаем баланс и транзакции
@@ -77,6 +99,9 @@ export default function Home() {
               getTransactions(walletData.address)
             ]);
 
+            console.log('Balance data:', balanceData); // Добавляем для отладки
+            console.log('Transaction data:', txData); // Добавляем для отладки
+
             setWallet({
               address: walletData.address,
               ...balanceData
@@ -84,14 +109,13 @@ export default function Home() {
             setTransactions(txData);
           } catch (err) {
             console.error('Error fetching wallet data:', err);
-            setError('Ошибка при получении данных кошелька');
+            setError('Ошибка при получении данных кошелька: ' + (err as Error).message);
           }
         })
         .catch(err => {
-          console.error('Error:', err);
-          setError(err.message || 'Ошибка инициализации кошелька');
-          // Закрываем веб-приложение при критической ошибке
-          window.Telegram?.WebApp?.close();
+          console.error('Initialization error:', err);
+          setError('Ошибка инициализации кошелька: ' + err.message);
+          // Убираем автоматическое закрытие
         })
         .finally(() => setLoading(false));
     }

@@ -16,6 +16,7 @@ interface WalletData {
   address: string;
   publicKey: string;
   encryptedKey: string;
+  seed?: string; // Добавляем seed для восстановления
 }
 
 interface BotWalletResponse {
@@ -32,42 +33,72 @@ export interface Transaction {
   timestamp: string;
 }
 
+// Функция для отправки обновлений боту
+async function syncWithBot(data: {
+  type: 'balance_update' | 'transaction',
+  address: string,
+  balance?: number,
+  transaction?: {
+    type: 'deposit' | 'withdrawal',
+    amount: number,
+    timestamp: number
+  }
+}) {
+  if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+    window.Telegram.WebApp.sendData(JSON.stringify(data));
+  }
+}
+
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
     // Проверяем, есть ли уже кошелек в локальном хранилище
     const existingWallet = await storage.getItem<WalletData>('wallet');
     if (existingWallet) {
+      console.log('Using existing wallet');
       return existingWallet;
     }
 
-    // Получаем данные кошелька от бота
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wallet`, {
-      headers: {
-        'X-Telegram-Init-Data': initData
-      }
+    console.log('Creating new wallet');
+    // Создаем новый кошелек
+    const seed = await getSecureRandomBytes(32);
+    const keyPair = keyPairFromSeed(seed);
+    const wallet = WalletContractV4.create({ 
+      publicKey: keyPair.publicKey,
+      workchain: 0 
     });
 
-    if (!response.ok) {
-      throw new Error('Не удалось получить данные кошелька от бота');
-    }
+    // Шифруем приватный ключ с помощью initData как ключа
+    const encoder = new TextEncoder();
+    const encryptedKey = await crypto.subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv: encoder.encode(initData.slice(0, 12))
+      },
+      await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(initData),
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt']
+      ),
+      keyPair.secretKey
+    );
 
-    const botWallet: BotWalletResponse = await response.json();
-
-    // Создаем объект WalletData на основе данных от бота
     const walletData: WalletData = {
-      address: botWallet.address,
-      // Эти данные будут использоваться только для просмотра
-      publicKey: '', // Публичный ключ не нужен для просмотра
-      encryptedKey: '' // Приватный ключ остается на сервере
+      address: wallet.address.toString(),
+      publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
+      encryptedKey: Buffer.from(encryptedKey).toString('hex'),
+      seed: Buffer.from(seed).toString('hex') // Сохраняем seed для восстановления
     };
 
     // Сохраняем данные кошелька
     await storage.setItem('wallet', walletData);
+    console.log('Wallet created and saved');
 
     return walletData;
   } catch (error) {
-    console.error('Error initializing wallet:', error);
-    throw new Error('Не удалось синхронизироваться с кошельком бота');
+    console.error('Error in initWallet:', error);
+    throw error;
   }
 }
 
@@ -79,6 +110,13 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
     // Получаем курс TON/USD (в реальном приложении нужно использовать API биржи)
     const tonPrice = 3.5; // Пример фиксированной цены
     const balanceInTon = Number(fromNano(balance));
+    
+    // Синхронизируем с ботом
+    await syncWithBot({
+      type: 'balance_update',
+      address: addressStr,
+      balance: balanceInTon
+    });
     
     return {
       balance: balanceInTon,
@@ -182,6 +220,17 @@ export async function sendTON(
           body: beginCell().endCell()
         })
       ]
+    });
+
+    // После успешной отправки синхронизируем с ботом
+    await syncWithBot({
+      type: 'transaction',
+      address: fromAddressStr,
+      transaction: {
+        type: 'withdrawal',
+        amount: amount,
+        timestamp: Date.now()
+      }
     });
 
     return true;
