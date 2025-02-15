@@ -22,6 +22,7 @@
   },
   "ignoreCommand": "git diff --quiet HEAD^ HEAD ./",
   "env": {
-    "NEXT_PUBLIC_API_URL": "https://earth-wallet-bot.vercel.app"
+    "NEXT_PUBLIC_API_URL": "https://web-app-wallet-29fo.vercel.app",
+    "NEXT_PUBLIC_TELEGRAM_BOT_TOKEN": "7748878238:AAH_DEJFc1esypaU3KLafVboDzpcRpCgwWo"
   }
 } 
