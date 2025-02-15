@@ -102,7 +102,8 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
     // Проверяем и получаем данные пользователя Telegram
     const telegramUser = await verifyTelegramWebAppData(initData);
     if (!telegramUser) {
-      throw new Error('Invalid Telegram WebApp data');
+      console.error('Invalid Telegram WebApp data');
+      return null;
     }
 
     const telegramId = telegramUser.id.toString();
@@ -120,55 +121,43 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
     }
 
     console.log('Creating new wallet');
-    // Создаем новый кошелек
-    const seed = await getSecureRandomBytes(32);
-    const keyPair = keyPairFromSeed(seed);
-    const wallet = WalletContractV4.create({ 
-      publicKey: keyPair.publicKey,
-      workchain: 0 
-    });
+    try {
+      // Создаем новый кошелек
+      const seed = await getSecureRandomBytes(32);
+      const keyPair = keyPairFromSeed(seed);
+      const wallet = WalletContractV4.create({ 
+        publicKey: keyPair.publicKey,
+        workchain: 0 
+      });
 
-    // Шифруем приватный ключ
-    const encoder = new TextEncoder();
-    const encryptedKey = await crypto.subtle.encrypt(
-      {
-        name: 'AES-GCM',
-        iv: encoder.encode(initData.slice(0, 12))
-      },
-      await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(initData),
-        { name: 'AES-GCM' },
-        false,
-        ['encrypt']
-      ),
-      keyPair.secretKey
-    );
+      // Создаем простой объект с данными кошелька
+      const walletData: WalletData = {
+        address: wallet.address.toString(),
+        publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
+        encryptedKey: Buffer.from(keyPair.secretKey).toString('hex'),
+        telegramId
+      };
 
-    const walletData: WalletData = {
-      address: wallet.address.toString(),
-      publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
-      encryptedKey: Buffer.from(encryptedKey).toString('hex'),
-      seed: Buffer.from(seed).toString('hex'),
-      telegramId // Сохраняем Telegram ID
-    };
+      // Сохраняем данные кошелька
+      await storage.setItem('wallet', walletData);
+      console.log('Wallet created and saved');
 
-    // Сохраняем данные кошелька
-    await storage.setItem('wallet', walletData);
-    console.log('Wallet created and saved');
+      // Запускаем синхронизацию для нового кошелька
+      startBalanceSync(walletData.address, telegramId);
 
-    // Запускаем синхронизацию для нового кошелька
-    startBalanceSync(walletData.address, telegramId);
+      // Синхронизируем с ботом новый кошелек
+      await syncWithBot({
+        type: 'balance_update',
+        address: walletData.address,
+        telegramId,
+        balance: 0
+      });
 
-    // Синхронизируем с ботом новый кошелек
-    await syncWithBot({
-      type: 'balance_update',
-      address: walletData.address,
-      telegramId,
-      balance: 0
-    });
-
-    return walletData;
+      return walletData;
+    } catch (error) {
+      console.error('Error creating wallet:', error);
+      throw new Error('Failed to create wallet');
+    }
   } catch (error) {
     console.error('Error in initWallet:', error);
     throw error;
