@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: process.env.BOT_API_URL
+  baseURL: process.env.NEXT_PUBLIC_BOT_API_URL
 });
 
 export const getWallet = async (token: string) => {

@@ -11,9 +11,5 @@
       "src": "/(.*)",
       "dest": "/$1"
     }
-  ],
-  "env": {
-    "BOT_API_URL": "@bot-api-url",
-    "JWT_SECRET": "@jwt-secret"
-  }
+  ]
 } 
