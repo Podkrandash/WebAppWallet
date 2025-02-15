@@ -16,7 +16,8 @@ interface WalletData {
   address: string;
   publicKey: string;
   encryptedKey: string;
-  seed?: string; // Добавляем seed для восстановления
+  iv: string;
+  seed?: string;
 }
 
 interface BotWalletResponse {
@@ -67,20 +68,32 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       workchain: 0 
     });
 
-    // Шифруем приватный ключ с помощью initData как ключа
+    // Создаем ключ шифрования из initData
     const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.digest(
+      'SHA-256',
+      encoder.encode(initData)
+    );
+
+    // Создаем ключ для шифрования
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyMaterial,
+      { name: 'AES-GCM' },
+      false,
+      ['encrypt']
+    );
+
+    // Генерируем IV
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+
+    // Шифруем приватный ключ
     const encryptedKey = await crypto.subtle.encrypt(
       {
         name: 'AES-GCM',
-        iv: encoder.encode(initData.slice(0, 12))
+        iv: iv
       },
-      await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(initData),
-        { name: 'AES-GCM' },
-        false,
-        ['encrypt']
-      ),
+      key,
       keyPair.secretKey
     );
 
@@ -88,7 +101,8 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       address: wallet.address.toString(),
       publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
       encryptedKey: Buffer.from(encryptedKey).toString('hex'),
-      seed: Buffer.from(seed).toString('hex') // Сохраняем seed для восстановления
+      iv: Buffer.from(iv).toString('hex'),
+      seed: Buffer.from(seed).toString('hex')
     };
 
     // Сохраняем данные кошелька
@@ -177,26 +191,35 @@ export async function sendTON(
     const walletData = await storage.getItem<WalletData>('wallet');
     if (!walletData) throw new Error('Wallet not found');
 
-    // Расшифровываем приватный ключ
+    // Создаем ключ расшифровки из initData
     const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.digest(
+      'SHA-256',
+      encoder.encode(initData)
+    );
+
+    // Создаем ключ для расшифровки
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyMaterial,
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    );
+
+    // Расшифровываем приватный ключ
     const secretKey = await crypto.subtle.decrypt(
       {
         name: 'AES-GCM',
-        iv: encoder.encode(initData.slice(0, 12))
+        iv: Buffer.from(walletData.iv, 'hex')
       },
-      await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(initData),
-        { name: 'AES-GCM' },
-        false,
-        ['decrypt']
-      ),
+      key,
       Buffer.from(walletData.encryptedKey, 'hex')
     );
 
     const keyPair: KeyPair = {
       publicKey: Buffer.from(walletData.publicKey, 'hex'),
-      secretKey: Buffer.from(secretKey)
+      secretKey: Buffer.from(new Uint8Array(secretKey))
     };
 
     const wallet = WalletContractV4.create({
