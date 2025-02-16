@@ -120,16 +120,25 @@ export function stopBalanceSync(address: string) {
 // Функция для получения кошелька от бота
 async function getWalletFromBot(telegramId: string): Promise<WalletData | null> {
   try {
+    console.log('Requesting wallet for telegramId:', telegramId);
+    console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
+
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`,
       {
+        method: 'GET',
         headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
         },
-        credentials: 'include'
+        credentials: 'include',
+        mode: 'cors'
       }
     );
+    
+    console.log('Response status:', response.status);
     
     if (response.status === 404) {
       console.log('Wallet not found for telegramId:', telegramId);
@@ -137,11 +146,17 @@ async function getWalletFromBot(telegramId: string): Promise<WalletData | null> 
     }
     
     if (!response.ok) {
-      throw new Error(`Failed to get wallet: ${response.status}`);
+      const errorText = await response.text();
+      console.error('API error:', errorText);
+      throw new Error(`Failed to get wallet: ${response.status} - ${errorText}`);
     }
     
     const data = await response.json();
-    console.log('Received wallet data:', data);
+    console.log('Received wallet data:', {
+      address: data.address,
+      hasPublicKey: !!data.publicKey,
+      hasEncryptedKey: !!data.encryptedKey
+    });
     
     return {
       address: data.address,
@@ -151,7 +166,7 @@ async function getWalletFromBot(telegramId: string): Promise<WalletData | null> 
     };
   } catch (error) {
     console.error('Error getting wallet from bot:', error);
-    return null;
+    throw error;
   }
 }
 
