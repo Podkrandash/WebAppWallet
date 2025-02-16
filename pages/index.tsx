@@ -46,78 +46,101 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      if (!window.Telegram?.WebApp) {
-        setError('Приложение должно быть открыто из Telegram');
-        setLoading(false);
-        return;
-      }
-
-      // Настраиваем внешний вид
-      const webapp = window.Telegram.WebApp;
-      
-      // Принудительно устанавливаем полноэкранный режим
-      const forceFullscreen = () => {
-        webapp.expand();
-        webapp.setViewportHeight(100);
-      };
-
-      // Вызываем сразу и после загрузки
-      forceFullscreen();
-      window.addEventListener('load', forceFullscreen);
-      
-      webapp.enableClosingConfirmation();
-      webapp.setHeaderColor('#0A84FF');
-      webapp.setBackgroundColor('#F2F2F7');
-
-      // Обработка кнопки "Назад"
-      webapp.BackButton.onClick(() => {
-        if (activePage === 'history') {
-          setActivePage('wallet');
-          webapp.BackButton.hide();
+      try {
+        if (!window.Telegram?.WebApp) {
+          console.error('Telegram WebApp не найден');
+          setError('Приложение должно быть открыто из Telegram');
+          setLoading(false);
+          return;
         }
-      });
 
-      webapp.ready();
-
-      const webAppInitData = webapp.initData;
-      if (!webAppInitData) {
-        setError('Отсутствуют данные инициализации');
-        setLoading(false);
-        return;
-      }
-
-      setInitData(webAppInitData);
-
-      initWallet(webAppInitData)
-        .then(async (walletData) => {
-          if (!walletData) {
-            throw new Error('Не удалось получить данные кошелька');
-          }
-
+        // Настраиваем внешний вид
+        const webapp = window.Telegram.WebApp;
+        
+        // Принудительно устанавливаем полноэкранный режим
+        const forceFullscreen = () => {
           try {
-            const [balanceData, txData] = await Promise.all([
-              getBalance(walletData.address),
-              getTransactions(walletData.address)
-            ]);
-
-            setWallet({
-              address: walletData.address,
-              ...balanceData
-            });
-            setTransactions(txData);
-          } catch (err) {
-            setError('Ошибка при получении данных кошелька: ' + (err as Error).message);
+            webapp.expand();
+            webapp.setViewportHeight(100);
+          } catch (e) {
+            console.error('Ошибка установки полноэкранного режима:', e);
           }
-        })
-        .catch(err => {
-          setError('Ошибка инициализации кошелька: ' + err.message);
-        })
-        .finally(() => setLoading(false));
+        };
 
-      // Очистка при размонтировании
-      return () => {
-        window.removeEventListener('load', forceFullscreen);
-      };
+        // Вызываем сразу и после загрузки
+        forceFullscreen();
+        window.addEventListener('load', forceFullscreen);
+        
+        try {
+          webapp.enableClosingConfirmation();
+          webapp.setHeaderColor('#0A84FF');
+          webapp.setBackgroundColor('#F2F2F7');
+        } catch (e) {
+          console.error('Ошибка настройки внешнего вида:', e);
+        }
+
+        // Обработка кнопки "Назад"
+        webapp.BackButton.onClick(() => {
+          if (activePage === 'history') {
+            setActivePage('wallet');
+            webapp.BackButton.hide();
+          }
+        });
+
+        try {
+          webapp.ready();
+        } catch (e) {
+          console.error('Ошибка вызова ready():', e);
+        }
+
+        const webAppInitData = webapp.initData;
+        if (!webAppInitData) {
+          console.error('Отсутствуют данные инициализации');
+          setError('Отсутствуют данные инициализации');
+          setLoading(false);
+          return;
+        }
+
+        console.log('Получены данные инициализации:', webAppInitData);
+        setInitData(webAppInitData);
+
+        initWallet(webAppInitData)
+          .then(async (walletData) => {
+            if (!walletData) {
+              throw new Error('Не удалось получить данные кошелька');
+            }
+
+            try {
+              const [balanceData, txData] = await Promise.all([
+                getBalance(walletData.address),
+                getTransactions(walletData.address)
+              ]);
+
+              setWallet({
+                address: walletData.address,
+                ...balanceData
+              });
+              setTransactions(txData);
+            } catch (err) {
+              console.error('Ошибка при получении данных кошелька:', err);
+              setError('Ошибка при получении данных кошелька: ' + (err as Error).message);
+            }
+          })
+          .catch(err => {
+            console.error('Ошибка инициализации кошелька:', err);
+            setError('Ошибка инициализации кошелька: ' + err.message);
+          })
+          .finally(() => setLoading(false));
+
+        // Очистка при размонтировании
+        return () => {
+          window.removeEventListener('load', forceFullscreen);
+        };
+      } catch (error) {
+        console.error('Критическая ошибка инициализации:', error);
+        setError('Критическая ошибка инициализации: ' + (error as Error).message);
+        setLoading(false);
+      }
     }
   }, [activePage]);
 
@@ -133,6 +156,16 @@ export default function Home() {
     }
   };
 
+  if (!window?.Telegram?.WebApp && typeof window !== 'undefined') {
+    return (
+      <Container size="sm" py="xl">
+        <Alert icon={<IconAlertCircle size={16} />} title="Ошибка" color="red">
+          Приложение должно быть открыто из Telegram
+        </Alert>
+      </Container>
+    );
+  }
+
   if (error) {
     return (
       <Container size="sm" py="xl">
@@ -145,7 +178,14 @@ export default function Home() {
 
   return (
     <>
-      <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
+      <Script 
+        src="https://telegram.org/js/telegram-web-app.js" 
+        strategy="beforeInteractive"
+        onError={(e) => {
+          console.error('Ошибка загрузки Telegram Web App:', e);
+          setError('Ошибка загрузки Telegram Web App');
+        }}
+      />
       <Box 
         style={{ 
           minHeight: '100vh',
