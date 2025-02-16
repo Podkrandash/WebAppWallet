@@ -159,7 +159,7 @@ export default function WalletCard({
             value={amount}
             onChange={handleAmountChange}
             min={0.01}
-            max={balance - 0.05} // Учитываем комиссию
+            max={balance - 0.05} // Учитываем комиссиюю
             decimalScale={2}
             error={error && !amount ? 'Введите сумму' : null}
           />

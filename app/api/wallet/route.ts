@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyTelegramWebAppData } from '@/utils/telegram';
+import { prisma } from '../../../lib/prisma';
+import { verifyTelegramWebAppData } from '../../../utils/telegram';
 import { TonClient, WalletContractV4 } from '@ton/ton';
 import { getSecureRandomBytes, keyPairFromSeed } from '@ton/crypto';
 import crypto from 'crypto';

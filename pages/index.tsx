@@ -5,20 +5,12 @@ import Script from 'next/script';
 import WalletCard from '../components/WalletCard';
 import TransactionHistory from '../components/TransactionHistory';
 import BottomNavigation from '../components/BottomNavigation';
-import { initWallet, getBalance, getTransactions } from '../lib/ton';
+import { initWallet, getBalance, getTransactions, Transaction } from '../lib/ton';
 
 interface WalletData {
   balance: number;
   usdValue: string;
   address: string;
-}
-
-interface Transaction {
-  type: 'deposit' | 'withdrawal';
-  amount: number;
-  fromCurrency: string;
-  status: string;
-  timestamp: string;
 }
 
 declare global {

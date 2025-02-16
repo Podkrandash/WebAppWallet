@@ -3,6 +3,7 @@ import { getSecureRandomBytes, KeyPair, keyPairFromSeed } from '@ton/crypto';
 import { WalletContractV4 } from '@ton/ton';
 import localforage from 'localforage';
 import { verifyTelegramWebAppData } from '../utils/telegram';
+import { prisma } from './prisma';
 
 // Инициализация TON клиента
 const client = new TonClient({
@@ -28,7 +29,7 @@ interface WalletData {
 export interface Transaction {
   type: 'deposit' | 'withdrawal';
   amount: number;
-  fromCurrency: string;
+  address?: string;
   status: string;
   timestamp: string;
 }
@@ -40,7 +41,27 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       throw new Error('Ошибка проверки данных Telegram');
     }
 
-    // Генерируем новый кошелек
+    // Проверяем существующий кошелек в базе данных
+    let user = await prisma.user.findUnique({
+      where: { telegramId: telegramUser.id.toString() },
+      include: { wallets: true }
+    });
+
+    // Если пользователь существует и у него есть кошелек
+    if (user && user.wallets.length > 0) {
+      const wallet = user.wallets[0];
+      const walletData: WalletData = {
+        address: wallet.address,
+        publicKey: wallet.publicKey,
+        encryptedKey: wallet.encryptedKey
+      };
+      
+      // Сохраняем в локальное хранилище
+      await localforage.setItem('wallet', walletData);
+      return walletData;
+    }
+
+    // Если пользователя нет или у него нет кошелька, создаем новый
     const seed = await getSecureRandomBytes(32);
     const keyPair = keyPairFromSeed(seed);
     const wallet = WalletContractV4.create({
@@ -71,6 +92,50 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       encryptedKey: Buffer.from(encryptedKey).toString('hex')
     };
 
+    // Создаем или обновляем пользователя и кошелек в базе данных
+    user = await prisma.user.upsert({
+      where: { telegramId: telegramUser.id.toString() },
+      create: {
+        telegramId: telegramUser.id.toString(),
+        username: telegramUser.username || null,
+        firstName: telegramUser.first_name || null,
+        lastName: telegramUser.last_name || null,
+        wallets: {
+          create: {
+            address: walletData.address,
+            publicKey: walletData.publicKey,
+            encryptedKey: walletData.encryptedKey,
+            balance: 0
+          }
+        }
+      },
+      update: {
+        username: telegramUser.username || null,
+        firstName: telegramUser.first_name || null,
+        lastName: telegramUser.last_name || null,
+        wallets: {
+          upsert: {
+            where: {
+              address: walletData.address
+            },
+            create: {
+              address: walletData.address,
+              publicKey: walletData.publicKey,
+              encryptedKey: walletData.encryptedKey,
+              balance: 0
+            },
+            update: {
+              publicKey: walletData.publicKey,
+              encryptedKey: walletData.encryptedKey
+            }
+          }
+        }
+      },
+      include: {
+        wallets: true
+      }
+    });
+
     // Сохраняем в локальное хранилище
     await localforage.setItem('wallet', walletData);
 
@@ -87,6 +152,12 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
     const address = Address.parse(addressStr);
     const balance = await client.getBalance(address);
     const balanceInTon = Number(fromNano(balance));
+    
+    // Обновляем баланс в базе данных
+    await prisma.wallet.update({
+      where: { address: addressStr },
+      data: { balance: balanceInTon }
+    });
     
     // Обновляем цену TON каждые 5 минут
     const now = Date.now();
@@ -115,10 +186,22 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
 
 export async function getTransactions(addressStr: string, limit: number = 10): Promise<Transaction[]> {
   try {
+    // Получаем транзакции из блокчейна
     const address = Address.parse(addressStr);
     const transactions = await client.getTransactions(address, { limit });
 
-    return transactions.map(tx => {
+    // Получаем пользователя по адресу кошелька
+    const wallet = await prisma.wallet.findUnique({
+      where: { address: addressStr },
+      include: { user: true }
+    });
+
+    if (!wallet) {
+      throw new Error('Кошелёк не найден');
+    }
+
+    // Преобразуем и сохраняем транзакции
+    const processedTransactions = transactions.map(tx => {
       let amount = 0;
       let type: 'deposit' | 'withdrawal' = 'withdrawal';
 
@@ -135,14 +218,28 @@ export async function getTransactions(addressStr: string, limit: number = 10): P
         }
       }
 
+      // Сохраняем транзакцию в базе данных
+      prisma.transaction.create({
+        data: {
+          type,
+          amount,
+          address: addressStr,
+          userId: wallet.userId,
+          status: 'completed',
+          timestamp: new Date(Number(tx.now) * 1000)
+        }
+      }).catch(console.error);
+
       return {
         type,
         amount,
-        fromCurrency: 'TON',
+        address: addressStr,
         status: 'completed',
         timestamp: new Date(Number(tx.now) * 1000).toISOString()
       };
     });
+
+    return processedTransactions;
   } catch (error) {
     console.error('Ошибка получения транзакций:', error);
     throw error;
@@ -226,6 +323,23 @@ export async function sendTON(
         })
       ]
     });
+
+    // Сохраняем транзакцию в базе данных
+    const dbWallet = await prisma.wallet.findUnique({
+      where: { address: fromAddressStr }
+    });
+
+    if (dbWallet) {
+      await prisma.transaction.create({
+        data: {
+          type: 'withdrawal',
+          amount: totalAmount,
+          address: toAddressStr,
+          userId: dbWallet.userId,
+          timestamp: new Date()
+        }
+      });
+    }
 
     return true;
   } catch (error) {

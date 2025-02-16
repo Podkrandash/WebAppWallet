@@ -1,13 +1,6 @@
 import { Stack, Text, Paper, Group, Box } from '@mantine/core';
 import { IconArrowUpRight, IconArrowDownRight } from '@tabler/icons-react';
-
-interface Transaction {
-  type: 'deposit' | 'withdrawal';
-  amount: number;
-  fromCurrency: string;
-  status: string;
-  timestamp: string;
-}
+import { Transaction } from '../lib/ton';
 
 interface TransactionHistoryProps {
   transactions: Transaction[];
@@ -84,7 +77,7 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
                 color: tx.type === 'deposit' ? '#34C759' : '#FF3B30',
                 marginBottom: 4
               }}>
-                {tx.type === 'deposit' ? '+' : '-'}{tx.amount} {tx.fromCurrency}
+                {tx.type === 'deposit' ? '+' : '-'}{tx.amount} TON
               </Text>
               <Text 
                 size="xs" 

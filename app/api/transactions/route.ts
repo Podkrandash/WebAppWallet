@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyTelegramWebAppData } from '@/utils/telegram';
+import { prisma } from '../../../lib/prisma';
+import { verifyTelegramWebAppData } from '../../../utils/telegram';
 
 export async function GET(request: Request) {
   try {
