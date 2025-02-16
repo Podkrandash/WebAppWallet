@@ -36,109 +36,19 @@ export interface Transaction {
 
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
-    const telegramUser = await verifyTelegramWebAppData(initData);
-    if (!telegramUser) {
-      throw new Error('Ошибка проверки данных Telegram');
-    }
-
-    // Проверяем существующий кошелек в базе данных
-    let user = await prisma.user.findUnique({
-      where: { telegramId: telegramUser.id.toString() },
-      include: { wallets: true }
-    });
-
-    // Если пользователь существует и у него есть кошелек
-    if (user && user.wallets.length > 0) {
-      const wallet = user.wallets[0];
-      const walletData: WalletData = {
-        address: wallet.address,
-        publicKey: wallet.publicKey,
-        encryptedKey: wallet.encryptedKey
-      };
-      
-      // Сохраняем в локальное хранилище
-      await localforage.setItem('wallet', walletData);
-      return walletData;
-    }
-
-    // Если пользователя нет или у него нет кошелька, создаем новый
-    const seed = await getSecureRandomBytes(32);
-    const keyPair = keyPairFromSeed(seed);
-    const wallet = WalletContractV4.create({
-      publicKey: keyPair.publicKey,
-      workchain: 0
-    });
-
-    // Шифруем приватный ключ
-    const encoder = new TextEncoder();
-    const encryptedKey = await crypto.subtle.encrypt(
-      {
-        name: 'AES-GCM',
-        iv: encoder.encode(initData.slice(0, 12))
-      },
-      await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(process.env.ENCRYPTION_KEY || ''),
-        { name: 'AES-GCM' },
-        false,
-        ['encrypt']
-      ),
-      keyPair.secretKey
-    );
-
-    const walletData: WalletData = {
-      address: wallet.address.toString(),
-      publicKey: keyPair.publicKey.toString('hex'),
-      encryptedKey: Buffer.from(encryptedKey).toString('hex')
-    };
-
-    // Создаем или обновляем пользователя и кошелек в базе данных
-    user = await prisma.user.upsert({
-      where: { telegramId: telegramUser.id.toString() },
-      create: {
-        telegramId: telegramUser.id.toString(),
-        username: telegramUser.username || null,
-        firstName: telegramUser.first_name || null,
-        lastName: telegramUser.last_name || null,
-        wallets: {
-          create: {
-            address: walletData.address,
-            publicKey: walletData.publicKey,
-            encryptedKey: walletData.encryptedKey,
-            balance: 0
-          }
-        }
-      },
-      update: {
-        username: telegramUser.username || null,
-        firstName: telegramUser.first_name || null,
-        lastName: telegramUser.last_name || null,
-        wallets: {
-          upsert: {
-            where: {
-              address: walletData.address
-            },
-            create: {
-              address: walletData.address,
-              publicKey: walletData.publicKey,
-              encryptedKey: walletData.encryptedKey,
-              balance: 0
-            },
-            update: {
-              publicKey: walletData.publicKey,
-              encryptedKey: walletData.encryptedKey
-            }
-          }
-        }
-      },
-      include: {
-        wallets: true
+    const response = await fetch('/api/wallet', {
+      headers: {
+        'x-telegram-init-data': initData
       }
     });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Ошибка инициализации кошелька');
+    }
 
-    // Сохраняем в локальное хранилище
+    const walletData = await response.json();
     await localforage.setItem('wallet', walletData);
-
     return walletData;
   } catch (error) {
     console.error('Ошибка инициализации кошелька:', error);
@@ -148,16 +58,9 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
 
 export async function getBalance(addressStr: string): Promise<{ balance: number; usdValue: string }> {
   try {
-    // Получаем баланс
     const address = Address.parse(addressStr);
     const balance = await client.getBalance(address);
     const balanceInTon = Number(fromNano(balance));
-    
-    // Обновляем баланс в базе данных
-    await prisma.wallet.update({
-      where: { address: addressStr },
-      data: { balance: balanceInTon }
-    });
     
     // Обновляем цену TON каждые 5 минут
     const now = Date.now();
@@ -184,62 +87,20 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
   }
 }
 
-export async function getTransactions(addressStr: string, limit: number = 10): Promise<Transaction[]> {
+export async function getTransactions(addressStr: string): Promise<Transaction[]> {
   try {
-    // Получаем транзакции из блокчейна
-    const address = Address.parse(addressStr);
-    const transactions = await client.getTransactions(address, { limit });
-
-    // Получаем пользователя по адресу кошелька
-    const wallet = await prisma.wallet.findUnique({
-      where: { address: addressStr },
-      include: { user: true }
+    const response = await fetch('/api/transactions', {
+      headers: {
+        'x-telegram-init-data': window.Telegram?.WebApp?.initData || ''
+      }
     });
 
-    if (!wallet) {
-      throw new Error('Кошелёк не найден');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Ошибка получения транзакций');
     }
 
-    // Преобразуем и сохраняем транзакции
-    const processedTransactions = transactions.map(tx => {
-      let amount = 0;
-      let type: 'deposit' | 'withdrawal' = 'withdrawal';
-
-      if (tx.inMessage && tx.inMessage.info.type === 'internal') {
-        const value = tx.inMessage.info.value.coins;
-        if (value > 0n) {
-          amount = Number(fromNano(value));
-          type = 'deposit';
-        }
-      } else if (tx.outMessages.size > 0) {
-        const outMsg = Array.from(tx.outMessages.values())[0];
-        if (outMsg.info.type === 'internal') {
-          amount = Number(fromNano(outMsg.info.value.coins));
-        }
-      }
-
-      // Сохраняем транзакцию в базе данных
-      prisma.transaction.create({
-        data: {
-          type,
-          amount,
-          address: addressStr,
-          userId: wallet.userId,
-          status: 'completed',
-          timestamp: new Date(Number(tx.now) * 1000)
-        }
-      }).catch(console.error);
-
-      return {
-        type,
-        amount,
-        address: addressStr,
-        status: 'completed',
-        timestamp: new Date(Number(tx.now) * 1000).toISOString()
-      };
-    });
-
-    return processedTransactions;
+    return await response.json();
   } catch (error) {
     console.error('Ошибка получения транзакций:', error);
     throw error;
