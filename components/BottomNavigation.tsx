@@ -1,5 +1,6 @@
 import { Paper, UnstyledButton, Stack, Text, Box } from '@mantine/core';
 import { IconWallet, IconClockHour4 } from '@tabler/icons-react';
+import { useState, useEffect } from 'react';
 
 interface BottomNavigationProps {
   active: 'wallet' | 'history';
@@ -7,6 +8,24 @@ interface BottomNavigationProps {
 }
 
 export default function BottomNavigation({ active, onNavigate }: BottomNavigationProps) {
+  const [sizes, setSizes] = useState({
+    icon: 20,
+    text: 11
+  });
+
+  useEffect(() => {
+    const updateSizes = () => {
+      setSizes({
+        icon: Math.min(Math.max(20, window.innerWidth * 6 / 100), 24),
+        text: Math.min(Math.max(11, window.innerWidth * 3 / 100), 12)
+      });
+    };
+
+    updateSizes();
+    window.addEventListener('resize', updateSizes);
+    return () => window.removeEventListener('resize', updateSizes);
+  }, []);
+
   return (
     <Paper 
       shadow="sm"
@@ -42,15 +61,13 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
         >
           <Stack align="center" gap={4}>
             <IconWallet 
-              size={clamp(20, 6, 24)} 
+              size={sizes.icon}
               color={active === 'wallet' ? '#0A84FF' : '#8E8E93'} 
-              style={{ 
-                transition: 'color 0.2s ease'
-              }}
+              style={{ transition: 'color 0.2s ease' }}
             />
             <Text 
               style={{ 
-                fontSize: `${clamp(11, 3, 12)}px`,
+                fontSize: `${sizes.text}px`,
                 transition: 'color 0.2s ease'
               }}
               fw={500}
@@ -71,15 +88,13 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
         >
           <Stack align="center" gap={4}>
             <IconClockHour4 
-              size={clamp(20, 6, 24)}
+              size={sizes.icon}
               color={active === 'history' ? '#0A84FF' : '#8E8E93'} 
-              style={{ 
-                transition: 'color 0.2s ease'
-              }}
+              style={{ transition: 'color 0.2s ease' }}
             />
             <Text 
               style={{ 
-                fontSize: `${clamp(11, 3, 12)}px`,
+                fontSize: `${sizes.text}px`,
                 transition: 'color 0.2s ease'
               }}
               fw={500}
@@ -92,9 +107,4 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
       </Box>
     </Paper>
   );
-}
-
-// Вспомогательная функция для расчета размера
-function clamp(min: number, vw: number, max: number): number {
-  return Math.min(Math.max(min, window.innerWidth * vw / 100), max);
 } 
