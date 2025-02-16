@@ -50,6 +50,8 @@ export async function verifyTelegramWebAppData(initData: string): Promise<Telegr
       return null;
     }
 
+    console.log('Bot token found:', botToken.slice(0, 5) + '...');
+
     // Создаем секретный ключ
     const secretKey = crypto
       .createHmac('sha256', 'WebAppData')
