@@ -122,6 +122,7 @@ async function getWalletFromBot(telegramId: string): Promise<WalletData | null> 
   try {
     console.log('Requesting wallet for telegramId:', telegramId);
     console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
+    console.log('Full request URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`);
 
     const response = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`,
@@ -133,17 +134,11 @@ async function getWalletFromBot(telegramId: string): Promise<WalletData | null> 
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
         },
-        credentials: 'include',
-        mode: 'cors'
+        credentials: 'include'
       }
     );
     
     console.log('Response status:', response.status);
-    
-    if (response.status === 404) {
-      console.log('Wallet not found for telegramId:', telegramId);
-      return null;
-    }
     
     if (!response.ok) {
       const errorText = await response.text();
@@ -157,6 +152,11 @@ async function getWalletFromBot(telegramId: string): Promise<WalletData | null> 
       hasPublicKey: !!data.publicKey,
       hasEncryptedKey: !!data.encryptedKey
     });
+    
+    if (!data.address || !data.publicKey || !data.encryptedKey) {
+      console.error('Invalid wallet data received:', data);
+      throw new Error('Invalid wallet data received from server');
+    }
     
     return {
       address: data.address,
