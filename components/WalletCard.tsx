@@ -61,20 +61,17 @@ export default function WalletCard({
   };
 
   return (
-    <Box style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      {/* Фиксированная верхняя часть */}
-      <Box 
-        style={{ 
-          padding: '16px',
-          background: '#F2F2F7',
-          position: 'sticky',
-          top: 0,
-          zIndex: 100
-        }}
-      >
+    <Box style={{ height: '100%', overflowY: 'auto' }}>
+      <Stack gap="md" pb={80} px="md">
         {/* Основной баланс */}
-        <Stack gap="xs" align="center" mb="md">
-          <Text size="xl" fw={700} style={{ fontSize: '32px' }}>
+        <Stack gap="xs" align="center">
+          <Text 
+            fw={700} 
+            style={{ 
+              fontSize: 'clamp(24px, 8vw, 32px)',
+              lineHeight: 1.2
+            }}
+          >
             {usdValue} ₽
           </Text>
           <Text size="sm" c="dimmed">
@@ -83,155 +80,151 @@ export default function WalletCard({
         </Stack>
 
         {/* Кнопки действий */}
-        <SimpleGrid cols={{ base: 3, xs: 6 }} mb="md">
+        <SimpleGrid 
+          cols={{ base: 3, sm: 6 }}
+          spacing="md"
+        >
           <Stack gap={4} align="center">
             <ActionIcon 
               variant="light" 
               color="blue" 
-              size="xl" 
+              size="xl"
               radius="xl"
               onClick={() => setSendModalOpen(true)}
+              style={{
+                width: 'clamp(40px, 10vw, 48px)',
+                height: 'clamp(40px, 10vw, 48px)'
+              }}
             >
-              <IconSend size={20} />
+              <IconSend style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
             </ActionIcon>
-            <Text size="xs">Отправить</Text>
+            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Отправить</Text>
           </Stack>
 
           <Stack gap={4} align="center">
             <ActionIcon 
               variant="light" 
               color="blue" 
-              size="xl" 
+              size="xl"
               radius="xl"
               onClick={() => {
                 navigator.clipboard.writeText(address);
                 window.Telegram?.WebApp?.showAlert('Адрес скопирован');
               }}
-            >
-              <IconDownload size={20} />
-            </ActionIcon>
-            <Text size="xs">Получить</Text>
-          </Stack>
-
-          <Stack gap={4} align="center">
-            <ActionIcon 
-              variant="light" 
-              color="blue" 
-              size="xl" 
-              radius="xl"
-            >
-              <IconQrcode size={20} />
-            </ActionIcon>
-            <Text size="xs">Сканировать</Text>
-          </Stack>
-
-          <Stack gap={4} align="center">
-            <ActionIcon 
-              variant="light" 
-              color="blue" 
-              size="xl" 
-              radius="xl"
-            >
-              <IconArrowsExchange size={20} />
-            </ActionIcon>
-            <Text size="xs">Обменять</Text>
-          </Stack>
-
-          <Stack gap={4} align="center">
-            <ActionIcon 
-              variant="light" 
-              color="blue" 
-              size="xl" 
-              radius="xl"
-            >
-              <IconCoin size={20} />
-            </ActionIcon>
-            <Text size="xs">Купить TON</Text>
-          </Stack>
-
-          <Stack gap={4} align="center">
-            <ActionIcon 
-              variant="light" 
-              color="blue" 
-              size="xl" 
-              radius="xl"
-            >
-              <IconLock size={20} />
-            </ActionIcon>
-            <Text size="xs">Застейкать</Text>
-          </Stack>
-        </SimpleGrid>
-      </Box>
-
-      {/* Скроллируемый список токенов */}
-      <Box 
-        style={{ 
-          flex: 1,
-          overflowY: 'auto',
-          padding: '16px',
-          paddingBottom: '80px'
-        }}
-      >
-        <Stack gap="xs">
-          <Paper 
-            p="md" 
-            radius="md"
-            style={{
-              background: 'rgba(255, 255, 255, 0.5)',
-              backdropFilter: 'blur(10px)'
-            }}
-          >
-            <Group justify="space-between" align="flex-start">
-              <Group>
-                <Text size="xl">💎</Text>
-                <div>
-                  <Group gap={4}>
-                    <Text size="sm" fw={500}>TON</Text>
-                  </Group>
-                  <Group gap={4}>
-                    <Text size="xs" c="dimmed">{(balance * 3.5).toFixed(2)} ₽</Text>
-                    <Text size="xs" c="green">+0.48%</Text>
-                  </Group>
-                </div>
-              </Group>
-              <div style={{ textAlign: 'right' }}>
-                <Text size="sm" fw={500}>{balance.toFixed(4)}</Text>
-                <Text size="xs" c="dimmed">
-                  {(balance * 3.5).toFixed(2)} ₽
-                </Text>
-              </div>
-            </Group>
-          </Paper>
-          {/* Добавим несколько тестовых токенов для демонстрации скролла */}
-          {Array.from({ length: 20 }).map((_, index) => (
-            <Paper 
-              key={index}
-              p="md" 
-              radius="md"
               style={{
-                background: 'rgba(255, 255, 255, 0.5)',
-                backdropFilter: 'blur(10px)'
+                width: 'clamp(40px, 10vw, 48px)',
+                height: 'clamp(40px, 10vw, 48px)'
               }}
             >
-              <Group justify="space-between" align="flex-start">
-                <Group>
-                  <Text size="xl">🪙</Text>
-                  <div>
-                    <Group gap={4}>
-                      <Text size="sm" fw={500}>Token {index + 1}</Text>
-                    </Group>
-                    <Text size="xs" c="dimmed">0.00 ₽</Text>
-                  </div>
+              <IconDownload style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
+            </ActionIcon>
+            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Получить</Text>
+          </Stack>
+
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl"
+              radius="xl"
+              style={{
+                width: 'clamp(40px, 10vw, 48px)',
+                height: 'clamp(40px, 10vw, 48px)'
+              }}
+            >
+              <IconQrcode style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
+            </ActionIcon>
+            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Сканировать</Text>
+          </Stack>
+
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl"
+              radius="xl"
+              style={{
+                width: 'clamp(40px, 10vw, 48px)',
+                height: 'clamp(40px, 10vw, 48px)'
+              }}
+            >
+              <IconArrowsExchange style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
+            </ActionIcon>
+            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Обменять</Text>
+          </Stack>
+
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl"
+              radius="xl"
+              style={{
+                width: 'clamp(40px, 10vw, 48px)',
+                height: 'clamp(40px, 10vw, 48px)'
+              }}
+            >
+              <IconCoin style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
+            </ActionIcon>
+            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Купить TON</Text>
+          </Stack>
+
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl"
+              radius="xl"
+              style={{
+                width: 'clamp(40px, 10vw, 48px)',
+                height: 'clamp(40px, 10vw, 48px)'
+              }}
+            >
+              <IconLock style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
+            </ActionIcon>
+            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Застейкать</Text>
+          </Stack>
+        </SimpleGrid>
+
+        {/* Список токенов */}
+        <Paper 
+          p="md"
+          radius="md"
+          style={{
+            background: 'rgba(255, 255, 255, 0.5)',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          <Group justify="space-between" align="flex-start">
+            <Group>
+              <img 
+                src="https://ton.org/download/ton_symbol.png" 
+                alt="TON"
+                style={{ 
+                  width: 'clamp(24px, 6vw, 32px)', 
+                  height: 'clamp(24px, 6vw, 32px)',
+                  borderRadius: '50%'
+                }}
+              />
+              <div>
+                <Group gap={4}>
+                  <Text style={{ fontSize: 'clamp(14px, 4vw, 16px)' }} fw={500}>TON</Text>
                 </Group>
-                <div style={{ textAlign: 'right' }}>
-                  <Text size="sm" fw={500}>0.0000</Text>
-                  <Text size="xs" c="dimmed">0.00 ₽</Text>
-                </div>
-              </Group>
-            </Paper>
-          ))}
-        </Stack>
-      </Box>
+                <Group gap={4}>
+                  <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }} c="dimmed">{(balance * 3.5).toFixed(2)} ₽</Text>
+                  <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }} c="green">+0.48%</Text>
+                </Group>
+              </div>
+            </Group>
+            <div style={{ textAlign: 'right' }}>
+              <Text style={{ fontSize: 'clamp(14px, 4vw, 16px)' }} fw={500}>{balance.toFixed(4)}</Text>
+              <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }} c="dimmed">
+                {(balance * 3.5).toFixed(2)} ₽
+              </Text>
+            </div>
+          </Group>
+        </Paper>
+      </Stack>
 
       {/* Модальное окно отправки */}
       <Modal
@@ -239,6 +232,8 @@ export default function WalletCard({
         onClose={() => setSendModalOpen(false)}
         title="Отправить TON"
         centered
+        size="md"
+        padding="md"
       >
         <Stack>
           <TextInput
@@ -247,6 +242,7 @@ export default function WalletCard({
             value={recipientAddress}
             onChange={(e) => setRecipientAddress(e.currentTarget.value)}
             error={error && !recipientAddress ? 'Введите адрес' : null}
+            size="md"
           />
           
           <NumberInput
@@ -258,6 +254,7 @@ export default function WalletCard({
             max={balance - 0.05}
             decimalScale={2}
             error={error && !amount ? 'Введите сумму' : null}
+            size="md"
           />
 
           {error && (
@@ -274,6 +271,7 @@ export default function WalletCard({
             onClick={handleSend}
             loading={sending}
             disabled={!amount || !recipientAddress || sending}
+            size="md"
           >
             Отправить
           </Button>

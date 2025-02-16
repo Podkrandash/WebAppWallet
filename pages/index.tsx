@@ -160,12 +160,12 @@ export default function Home() {
       <Box 
         style={{ 
           height: '100vh',
-          background: '#F2F2F7',
           display: 'flex',
-          flexDirection: 'column'
+          flexDirection: 'column',
+          background: '#F2F2F7'
         }}
       >
-        <Box style={{ flex: 1, position: 'relative' }}>
+        <Box style={{ flex: 1, overflow: 'hidden' }}>
           <LoadingOverlay visible={loading} />
           
           {activePage === 'wallet' && wallet && (
@@ -178,7 +178,7 @@ export default function Home() {
           )}
 
           {activePage === 'history' && (
-            <Box px="md">
+            <Box px="md" style={{ height: '100%', overflowY: 'auto' }}>
               <TransactionHistory transactions={transactions} />
             </Box>
           )}
