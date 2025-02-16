@@ -4,7 +4,7 @@ import { WalletContractV4 } from '@ton/ton';
 import localforage from 'localforage';
 import { verifyTelegramWebAppData } from '../utils/telegram';
 
-// Инициализация TON клиента с API ключом
+// Инициализация TON клиента
 const client = new TonClient({
   endpoint: 'https://toncenter.com/api/v2/jsonRPC',
   apiKey: process.env.TONCENTER_API_KEY

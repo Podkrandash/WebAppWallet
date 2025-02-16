@@ -30,7 +30,6 @@ declare global {
         expand: () => void;
         showAlert: (message: string) => void;
         close: () => void;
-        sendData: (data: string) => void;
       };
     };
   }
@@ -91,22 +90,6 @@ export default function Home() {
         .finally(() => setLoading(false));
     }
   }, []);
-
-  const handleSend = () => {
-    window.Telegram?.WebApp?.showAlert('Функция отправки в разработке');
-  };
-
-  const handleReceive = () => {
-    if (wallet) {
-      navigator.clipboard.writeText(wallet.address)
-        .then(() => window.Telegram?.WebApp?.showAlert('Адрес скопирован в буфер обмена'))
-        .catch(() => window.Telegram?.WebApp?.showAlert('Не удалось скопировать адрес'));
-    }
-  };
-
-  const handleQRCode = () => {
-    window.Telegram?.WebApp?.showAlert('Функция QR-кода в разработке');
-  };
 
   if (error) {
     return (
