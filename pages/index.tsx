@@ -42,105 +42,80 @@ export default function Home() {
   const [activePage, setActivePage] = useState<'wallet' | 'history'>('wallet');
   const [error, setError] = useState<string | null>(null);
   const [initData, setInitData] = useState<string>('');
-  const [isClient, setIsClient] = useState(false);
-
-  // Определяем, что мы на клиенте
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Если мы на сервере, возвращаем загрузочный экран
-  if (!isClient) {
-    return (
-      <Box style={{ minHeight: '100vh', background: '#F2F2F7' }}>
-        <LoadingOverlay visible={true} />
-      </Box>
-    );
-  }
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      try {
-        if (!window.Telegram?.WebApp) {
-          console.error('Telegram WebApp не найден');
-          setError('Приложение должно быть открыть из Telegram');
-          setLoading(false);
-          return;
-        }
-
-        // Настраиваем внешний вид
-        const webapp = window.Telegram.WebApp;
-        
-        try {
-          webapp.enableClosingConfirmation();
-          webapp.setHeaderColor('#0A84FF');
-          webapp.setBackgroundColor('#F2F2F7');
-        } catch (e) {
-          console.error('Ошибка настройки внешнего вида:', e);
-        }
-
-        // Обработка кнопки "Назад"
-        webapp.BackButton.onClick(() => {
-          if (activePage === 'history') {
-            setActivePage('wallet');
-            webapp.BackButton.hide();
-          }
-        });
-
-        try {
-          webapp.ready();
-        } catch (e) {
-          console.error('Ошибка вызова ready():', e);
-        }
-
-        const webAppInitData = webapp.initData;
-        if (!webAppInitData) {
-          console.error('Отсутствуют данные инициализации');
-          setError('Отсутствуют данные инициализации');
-          setLoading(false);
-          return;
-        }
-
-        console.log('Получены данные инициализации:', webAppInitData);
-        setInitData(webAppInitData);
-
-        initWallet(webAppInitData)
-          .then(async (walletData) => {
-            if (!walletData) {
-              throw new Error('Не удалось получить данные кошелька');
-            }
-
-            try {
-              const [balanceData, txData] = await Promise.all([
-                getBalance(walletData.address),
-                getTransactions(walletData.address)
-              ]);
-
-              setWallet({
-                address: walletData.address,
-                ...balanceData
-              });
-              setTransactions(txData);
-            } catch (err) {
-              console.error('Ошибка при получении данных кошелька:', err);
-              setError('Ошибка при получении данных кошелька: ' + (err as Error).message);
-            }
-          })
-          .catch(err => {
-            console.error('Ошибка инициализации кошелька:', err);
-            setError('Ошибка инициализации кошелька: ' + err.message);
-          })
-          .finally(() => setLoading(false));
-
-        // Очистка при размонтировании
-        return () => {
-          // No need to remove event listeners or clean up resources
-        };
-      } catch (error) {
-        console.error('Критическая ошибка инициализации:', error);
-        setError('Критическая ошибка инициализации: ' + (error as Error).message);
+      // Проверяем доступность Telegram Web App
+      if (!window.Telegram?.WebApp) {
+        console.error('Telegram WebApp не найден');
+        setError('Приложение должно быть открыто из Telegram');
         setLoading(false);
+        return;
       }
+
+      // Настраиваем внешний вид
+      const webapp = window.Telegram.WebApp;
+      
+      try {
+        webapp.enableClosingConfirmation();
+        webapp.setHeaderColor('#0A84FF');
+        webapp.setBackgroundColor('#F2F2F7');
+      } catch (e) {
+        console.error('Ошибка настройки внешнего вида:', e);
+      }
+
+      // Обработка кнопки "Назад"
+      webapp.BackButton.onClick(() => {
+        if (activePage === 'history') {
+          setActivePage('wallet');
+          webapp.BackButton.hide();
+        }
+      });
+
+      try {
+        webapp.ready();
+      } catch (e) {
+        console.error('Ошибка вызова ready():', e);
+      }
+
+      const webAppInitData = webapp.initData;
+      if (!webAppInitData) {
+        console.error('Отсутствуют данные инициализации');
+        setError('Отсутствуют данные инициализации');
+        setLoading(false);
+        return;
+      }
+
+      console.log('Получены данные инициализации:', webAppInitData);
+      setInitData(webAppInitData);
+
+      initWallet(webAppInitData)
+        .then(async (walletData) => {
+          if (!walletData) {
+            throw new Error('Не удалось получить данные кошелька');
+          }
+
+          try {
+            const [balanceData, txData] = await Promise.all([
+              getBalance(walletData.address),
+              getTransactions(walletData.address)
+            ]);
+
+            setWallet({
+              address: walletData.address,
+              ...balanceData
+            });
+            setTransactions(txData);
+          } catch (err) {
+            console.error('Ошибка при получении данных кошелька:', err);
+            setError('Ошибка при получении данных кошелька: ' + (err as Error).message);
+          }
+        })
+        .catch(err => {
+          console.error('Ошибка инициализации кошелька:', err);
+          setError('Ошибка инициализации кошелька: ' + err.message);
+        })
+        .finally(() => setLoading(false));
     }
   }, [activePage]);
 
@@ -155,20 +130,6 @@ export default function Home() {
       }
     }
   };
-
-  // Проверяем доступность Telegram Web App только на клиенте
-  const isBrowser = typeof window !== 'undefined';
-  const isTelegramWebAppMissing = isBrowser && !window?.Telegram?.WebApp;
-
-  if (isTelegramWebAppMissing) {
-    return (
-      <Container size="sm" py="xl">
-        <Alert icon={<IconAlertCircle size={16} />} title="Ошибка" color="red">
-          Приложение должно быть открыто из Telegram
-        </Alert>
-      </Container>
-    );
-  }
 
   if (error) {
     return (
