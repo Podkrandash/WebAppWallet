@@ -25,7 +25,6 @@ declare global {
         enableClosingConfirmation: () => void;
         setHeaderColor: (color: string) => void;
         setBackgroundColor: (color: string) => void;
-        setViewportHeight: (height: number) => void;
         BackButton: {
           onClick: (callback: () => void) => void;
           hide: () => void;
@@ -49,27 +48,13 @@ export default function Home() {
       try {
         if (!window.Telegram?.WebApp) {
           console.error('Telegram WebApp не найден');
-          setError('Приложение должно быть открыто из Telegram');
+          setError('Приложение должно быть открыть из Telegram');
           setLoading(false);
           return;
         }
 
         // Настраиваем внешний вид
         const webapp = window.Telegram.WebApp;
-        
-        // Принудительно устанавливаем полноэкранный режим
-        const forceFullscreen = () => {
-          try {
-            webapp.expand();
-            webapp.setViewportHeight(100);
-          } catch (e) {
-            console.error('Ошибка установки полноэкранного режима:', e);
-          }
-        };
-
-        // Вызываем сразу и после загрузки
-        forceFullscreen();
-        window.addEventListener('load', forceFullscreen);
         
         try {
           webapp.enableClosingConfirmation();
@@ -134,7 +119,7 @@ export default function Home() {
 
         // Очистка при размонтировании
         return () => {
-          window.removeEventListener('load', forceFullscreen);
+          // No need to remove event listeners or clean up resources
         };
       } catch (error) {
         console.error('Критическая ошибка инициализации:', error);

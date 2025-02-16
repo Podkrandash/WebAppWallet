@@ -1,7 +1,17 @@
-import { Card, Title, Text, Button, Group, CopyButton, Stack, ActionIcon, Box, Center, Paper, Modal, TextInput, NumberInput } from '@mantine/core';
-import { IconSend, IconDownload, IconQrcode, IconCopy } from '@tabler/icons-react';
+import { Box, Text, Button, Group, CopyButton, Stack, ActionIcon, SimpleGrid, Paper, Modal, TextInput, NumberInput } from '@mantine/core';
+import { IconSend, IconDownload, IconQrcode, IconCopy, IconArrowsExchange, IconCoin, IconLock } from '@tabler/icons-react';
 import { useState } from 'react';
 import { sendTON } from '../lib/ton';
+
+interface Token {
+  symbol: string;
+  name: string;
+  balance: number;
+  price: number;
+  priceChange: number;
+  icon: string;
+  verified?: boolean;
+}
 
 interface WalletCardProps {
   balance: number;
@@ -22,9 +32,50 @@ export default function WalletCard({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleAmountChange = (value: string | number) => {
-    setAmount(typeof value === 'string' ? '' : value);
-  };
+  // Временные данные токенов
+  const tokens: Token[] = [
+    {
+      symbol: 'TON',
+      name: 'Toncoin',
+      balance: 0.0083,
+      price: 345.24,
+      priceChange: 0.48,
+      icon: '💎'
+    },
+    {
+      symbol: 'FPIBANK',
+      name: 'FPI Bank',
+      balance: 287.28,
+      price: 2.39,
+      priceChange: 2.39,
+      icon: '🏦'
+    },
+    {
+      symbol: 'HMSTR',
+      name: 'Hamster',
+      balance: 101.06,
+      price: 0.15,
+      priceChange: -0.23,
+      icon: '🐹'
+    },
+    {
+      symbol: 'NOT',
+      name: 'Notice',
+      balance: 4.94,
+      price: 0.27,
+      priceChange: 2.95,
+      icon: '⚠️'
+    },
+    {
+      symbol: 'EARTH',
+      name: 'Earth',
+      balance: 485538.88,
+      price: 0,
+      priceChange: 0,
+      icon: '🌍',
+      verified: false
+    }
+  ];
 
   const handleSend = async () => {
     if (!amount || !recipientAddress) {
@@ -54,90 +105,143 @@ export default function WalletCard({
     }
   };
 
-  const handleReceive = () => {
-    navigator.clipboard.writeText(address)
-      .then(() => window.Telegram?.WebApp?.showAlert('Адрес скопирован в буфер обмена'))
-      .catch(() => window.Telegram?.WebApp?.showAlert('Не удалось скопировать адрес'));
-  };
-
   return (
-    <>
-      <Box px="md">
-        <Paper 
-          radius="xl" 
-          p="xl" 
-          style={{ 
-            background: 'linear-gradient(135deg, #0A84FF 0%, #0066CC 100%)',
-            color: 'white',
-            marginBottom: '1rem'
-          }}
-        >
-          <Stack align="center" gap="xs">
-            <Text size="sm" fw={500} c="white" opacity={0.8}>Баланс</Text>
-            <Title order={1} style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>
-              {balance.toFixed(2)} TON
-            </Title>
-            <Text size="sm" c="white" opacity={0.8}>≈ ${usdValue}</Text>
-          </Stack>
-        </Paper>
+    <Box px="md">
+      {/* Основной баланс */}
+      <Stack gap="xs" align="center" mb="md">
+        <Text size="xl" fw={700} style={{ fontSize: '32px' }}>
+          709,09 ₽
+        </Text>
+        <Text size="sm" c="dimmed">
+          Ваш адрес: {address.slice(0, 4)}...{address.slice(-4)}
+        </Text>
+      </Stack>
 
-        <Paper 
-          radius="lg" 
-          p="md" 
-          withBorder 
-          style={{ 
-            background: 'rgba(255, 255, 255, 0.95)',
-            marginBottom: '1.5rem'
-          }}
-        >
-          <Stack gap="md" align="center">
-            <Text size="sm" c="dimmed" fw={500}>Адрес кошелька</Text>
-            <Group gap="xs" align="center">
-              <Text size="sm" style={{ fontFamily: 'monospace' }}>
-                {address.slice(0, 6)}...{address.slice(-4)}
-              </Text>
-              <CopyButton value={address}>
-                {({ copied, copy }) => (
-                  <ActionIcon 
-                    variant="subtle" 
-                    color={copied ? 'teal' : 'gray'} 
-                    onClick={copy}
-                    size="sm"
-                  >
-                    <IconCopy size={16} />
-                  </ActionIcon>
-                )}
-              </CopyButton>
-            </Group>
-          </Stack>
-        </Paper>
-
-        <Group grow gap="md">
-          <Button
-            variant="light"
-            color="blue"
+      {/* Кнопки действий */}
+      <SimpleGrid cols={3} mb="xl">
+        <Stack gap={4} align="center">
+          <ActionIcon 
+            variant="light" 
+            color="blue" 
+            size="xl" 
             radius="xl"
-            size="lg"
-            leftSection={<IconSend size={20} />}
             onClick={() => setSendModalOpen(true)}
-            style={{ flex: 1 }}
           >
-            Отправить
-          </Button>
-          <Button
-            variant="light"
-            color="teal"
-            radius="xl"
-            size="lg"
-            leftSection={<IconDownload size={20} />}
-            onClick={handleReceive}
-            style={{ flex: 1 }}
-          >
-            Получить
-          </Button>
-        </Group>
-      </Box>
+            <IconSend size={20} />
+          </ActionIcon>
+          <Text size="xs">Отправить</Text>
+        </Stack>
 
+        <Stack gap={4} align="center">
+          <ActionIcon 
+            variant="light" 
+            color="blue" 
+            size="xl" 
+            radius="xl"
+            onClick={() => {
+              navigator.clipboard.writeText(address);
+              window.Telegram?.WebApp?.showAlert('Адрес скопирован');
+            }}
+          >
+            <IconDownload size={20} />
+          </ActionIcon>
+          <Text size="xs">Получить</Text>
+        </Stack>
+
+        <Stack gap={4} align="center">
+          <ActionIcon 
+            variant="light" 
+            color="blue" 
+            size="xl" 
+            radius="xl"
+          >
+            <IconQrcode size={20} />
+          </ActionIcon>
+          <Text size="xs">Сканировать</Text>
+        </Stack>
+
+        <Stack gap={4} align="center">
+          <ActionIcon 
+            variant="light" 
+            color="blue" 
+            size="xl" 
+            radius="xl"
+          >
+            <IconArrowsExchange size={20} />
+          </ActionIcon>
+          <Text size="xs">Обменять</Text>
+        </Stack>
+
+        <Stack gap={4} align="center">
+          <ActionIcon 
+            variant="light" 
+            color="blue" 
+            size="xl" 
+            radius="xl"
+          >
+            <IconCoin size={20} />
+          </ActionIcon>
+          <Text size="xs">Купить TON</Text>
+        </Stack>
+
+        <Stack gap={4} align="center">
+          <ActionIcon 
+            variant="light" 
+            color="blue" 
+            size="xl" 
+            radius="xl"
+          >
+            <IconLock size={20} />
+          </ActionIcon>
+          <Text size="xs">Застейкать</Text>
+        </Stack>
+      </SimpleGrid>
+
+      {/* Список токенов */}
+      <Stack gap="xs">
+        {tokens.map((token) => (
+          <Paper 
+            key={token.symbol}
+            p="md" 
+            radius="md"
+            style={{
+              background: 'rgba(255, 255, 255, 0.5)',
+              backdropFilter: 'blur(10px)'
+            }}
+          >
+            <Group justify="space-between" align="flex-start">
+              <Group>
+                <Text size="xl">{token.icon}</Text>
+                <div>
+                  <Group gap={4}>
+                    <Text size="sm" fw={500}>{token.symbol}</Text>
+                    {token.verified === false && (
+                      <Text size="xs" c="orange">Непроверенный токен</Text>
+                    )}
+                  </Group>
+                  <Group gap={4}>
+                    <Text size="xs" c="dimmed">{token.price} ₽</Text>
+                    <Text 
+                      size="xs" 
+                      c={token.priceChange > 0 ? 'green' : token.priceChange < 0 ? 'red' : 'dimmed'}
+                    >
+                      {token.priceChange > 0 ? '+' : ''}{token.priceChange}%
+                    </Text>
+                  </Group>
+                </div>
+              </Group>
+              <div style={{ textAlign: 'right' }}>
+                <Text size="sm" fw={500}>{token.balance}</Text>
+                <Text size="xs" c="dimmed">
+                  {(token.balance * token.price).toFixed(2)} ₽
+                </Text>
+              </div>
+            </Group>
+          </Paper>
+        ))}
+      </Stack>
+
+      {/* Модальное окно отправки */}
       <Modal
         opened={sendModalOpen}
         onClose={() => setSendModalOpen(false)}
@@ -157,9 +261,9 @@ export default function WalletCard({
             label="Сумма TON"
             placeholder="0.1"
             value={amount}
-            onChange={handleAmountChange}
+            onChange={(value) => setAmount(typeof value === 'string' ? '' : value)}
             min={0.01}
-            max={balance - 0.05} // Учитываем комиссиюю
+            max={balance - 0.05}
             decimalScale={2}
             error={error && !amount ? 'Введите сумму' : null}
           />
@@ -183,6 +287,6 @@ export default function WalletCard({
           </Button>
         </Stack>
       </Modal>
-    </>
+    </Box>
   );
 } 
