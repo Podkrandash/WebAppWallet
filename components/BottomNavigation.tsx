@@ -13,15 +13,15 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
       p="md" 
       style={{ 
         position: 'fixed', 
-        bottom: 16,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: 'calc(100% - 32px)',
-        maxWidth: '400px',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
         background: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
-        borderRadius: '20px',
-        border: '1px solid rgba(0, 0, 0, 0.1)'
+        borderRadius: '20px 20px 0 0',
+        border: '1px solid rgba(0, 0, 0, 0.1)',
+        zIndex: 1000
       }}
     >
       <Box 

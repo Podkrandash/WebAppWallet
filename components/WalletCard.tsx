@@ -32,51 +32,6 @@ export default function WalletCard({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Временные данные токенов
-  const tokens: Token[] = [
-    {
-      symbol: 'TON',
-      name: 'Toncoin',
-      balance: 0.0083,
-      price: 345.24,
-      priceChange: 0.48,
-      icon: '💎'
-    },
-    {
-      symbol: 'FPIBANK',
-      name: 'FPI Bank',
-      balance: 287.28,
-      price: 2.39,
-      priceChange: 2.39,
-      icon: '🏦'
-    },
-    {
-      symbol: 'HMSTR',
-      name: 'Hamster',
-      balance: 101.06,
-      price: 0.15,
-      priceChange: -0.23,
-      icon: '🐹'
-    },
-    {
-      symbol: 'NOT',
-      name: 'Notice',
-      balance: 4.94,
-      price: 0.27,
-      priceChange: 2.95,
-      icon: '⚠️'
-    },
-    {
-      symbol: 'EARTH',
-      name: 'Earth',
-      balance: 485538.88,
-      price: 0,
-      priceChange: 0,
-      icon: '🌍',
-      verified: false
-    }
-  ];
-
   const handleSend = async () => {
     if (!amount || !recipientAddress) {
       setError('Заполните все поля');
@@ -106,11 +61,19 @@ export default function WalletCard({
   };
 
   return (
-    <Box px="md">
+    <Box 
+      px="md" 
+      pb={80}
+      style={{ 
+        maxWidth: '600px', 
+        margin: '0 auto',
+        overflowX: 'hidden'
+      }}
+    >
       {/* Основной баланс */}
       <Stack gap="xs" align="center" mb="md">
         <Text size="xl" fw={700} style={{ fontSize: '32px' }}>
-          709,09 ₽
+          {usdValue} ₽
         </Text>
         <Text size="sm" c="dimmed">
           Ваш адрес: {address.slice(0, 4)}...{address.slice(-4)}
@@ -118,7 +81,14 @@ export default function WalletCard({
       </Stack>
 
       {/* Кнопки действий */}
-      <SimpleGrid cols={3} mb="xl">
+      <SimpleGrid 
+        cols={{ base: 3, xs: 6 }} 
+        mb="xl" 
+        style={{ 
+          maxWidth: '100%',
+          overflow: 'hidden'
+        }}
+      >
         <Stack gap={4} align="center">
           <ActionIcon 
             variant="light" 
@@ -198,47 +168,42 @@ export default function WalletCard({
       </SimpleGrid>
 
       {/* Список токенов */}
-      <Stack gap="xs">
-        {tokens.map((token) => (
-          <Paper 
-            key={token.symbol}
-            p="md" 
-            radius="md"
-            style={{
-              background: 'rgba(255, 255, 255, 0.5)',
-              backdropFilter: 'blur(10px)'
-            }}
-          >
-            <Group justify="space-between" align="flex-start">
-              <Group>
-                <Text size="xl">{token.icon}</Text>
-                <div>
-                  <Group gap={4}>
-                    <Text size="sm" fw={500}>{token.symbol}</Text>
-                    {token.verified === false && (
-                      <Text size="xs" c="orange">Непроверенный токен</Text>
-                    )}
-                  </Group>
-                  <Group gap={4}>
-                    <Text size="xs" c="dimmed">{token.price} ₽</Text>
-                    <Text 
-                      size="xs" 
-                      c={token.priceChange > 0 ? 'green' : token.priceChange < 0 ? 'red' : 'dimmed'}
-                    >
-                      {token.priceChange > 0 ? '+' : ''}{token.priceChange}%
-                    </Text>
-                  </Group>
-                </div>
-              </Group>
-              <div style={{ textAlign: 'right' }}>
-                <Text size="sm" fw={500}>{token.balance}</Text>
-                <Text size="xs" c="dimmed">
-                  {(token.balance * token.price).toFixed(2)} ₽
-                </Text>
+      <Stack 
+        gap="xs" 
+        style={{ 
+          maxWidth: '100%',
+          overflow: 'hidden'
+        }}
+      >
+        <Paper 
+          p="md" 
+          radius="md"
+          style={{
+            background: 'rgba(255, 255, 255, 0.5)',
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          <Group justify="space-between" align="flex-start">
+            <Group>
+              <Text size="xl">💎</Text>
+              <div>
+                <Group gap={4}>
+                  <Text size="sm" fw={500}>TON</Text>
+                </Group>
+                <Group gap={4}>
+                  <Text size="xs" c="dimmed">{(balance * 3.5).toFixed(2)} ₽</Text>
+                  <Text size="xs" c="green">+0.48%</Text>
+                </Group>
               </div>
             </Group>
-          </Paper>
-        ))}
+            <div style={{ textAlign: 'right' }}>
+              <Text size="sm" fw={500}>{balance.toFixed(4)}</Text>
+              <Text size="xs" c="dimmed">
+                {(balance * 3.5).toFixed(2)} ₽
+              </Text>
+            </div>
+          </Group>
+        </Paper>
       </Stack>
 
       {/* Модальное окно отправки */}

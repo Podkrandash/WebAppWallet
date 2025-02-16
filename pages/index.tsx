@@ -60,6 +60,12 @@ export default function Home() {
         webapp.enableClosingConfirmation();
         webapp.setHeaderColor('#0A84FF');
         webapp.setBackgroundColor('#F2F2F7');
+        // Предотвращаем сворачивание при скролле
+        document.body.style.overscrollBehavior = 'none';
+        document.documentElement.style.overscrollBehavior = 'none';
+        // Предотвращаем горизонтальный скролл
+        document.body.style.overflowX = 'hidden';
+        document.documentElement.style.overflowX = 'hidden';
       } catch (e) {
         console.error('Ошибка настройки внешнего вида:', e);
       }
@@ -154,10 +160,11 @@ export default function Home() {
       <Box 
         style={{ 
           minHeight: '100vh',
-          background: '#F2F2F7'
+          background: '#F2F2F7',
+          paddingBottom: '80px' // Добавляем отступ для навигационной панели
         }}
       >
-        <Box py="xl" pb={100} pos="relative">
+        <Box py="xl" pos="relative">
           <LoadingOverlay visible={loading} />
           
           {activePage === 'wallet' && wallet && (
