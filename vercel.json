@@ -26,6 +26,6 @@
     "TONCENTER_API_KEY": "f39631c724bc966b49ab17316d9286f410efa5e72023ac18954cbd86b5c46ccc",
     "ENCRYPTION_KEY": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
     "COMMISSION_WALLET_ADDRESS": "UQDB261B0BQdjr7hZlnmPKPH3iH5XZkfKQklf6GvbEErjuUT",
-    "DATABASE_URL": "file:./dev.db"
+    "DATABASE_URL": "postgresql://neondb_owner:npg_wsXT7JMBka9e@ep-shiny-meadow-a8pk28qw-pooler.eastus2.azure.neon.tech/neondb?sslmode=require"
   }
 } 
