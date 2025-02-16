@@ -22,6 +22,14 @@ declare global {
         expand: () => void;
         showAlert: (message: string) => void;
         close: () => void;
+        enableClosingConfirmation: () => void;
+        setHeaderColor: (color: string) => void;
+        setBackgroundColor: (color: string) => void;
+        BackButton: {
+          onClick: (callback: () => void) => void;
+          hide: () => void;
+          show: () => void;
+        };
       };
     };
   }
@@ -43,10 +51,24 @@ export default function Home() {
         return;
       }
 
-      window.Telegram.WebApp.expand();
-      window.Telegram.WebApp.ready();
+      // Настраиваем внешний вид
+      const webapp = window.Telegram.WebApp;
+      webapp.expand(); // Разворачиваем на весь экран
+      webapp.enableClosingConfirmation(); // Подтверждение закрытия
+      webapp.setHeaderColor('#0A84FF'); // Цвет хедера в тон приложения
+      webapp.setBackgroundColor('#F2F2F7'); // Цвет фона
 
-      const webAppInitData = window.Telegram.WebApp.initData;
+      // Обработка кнопки "Назад"
+      webapp.BackButton.onClick(() => {
+        if (activePage === 'history') {
+          setActivePage('wallet');
+          webapp.BackButton.hide();
+        }
+      });
+
+      webapp.ready(); // Сообщаем Telegram что приложение готово
+
+      const webAppInitData = webapp.initData;
       if (!webAppInitData) {
         setError('Отсутствуют данные инициализации');
         setLoading(false);
@@ -81,7 +103,19 @@ export default function Home() {
         })
         .finally(() => setLoading(false));
     }
-  }, []);
+  }, [activePage]);
+
+  // Обработчик смены страницы
+  const handlePageChange = (page: 'wallet' | 'history') => {
+    setActivePage(page);
+    if (window.Telegram?.WebApp) {
+      if (page === 'history') {
+        window.Telegram.WebApp.BackButton.show();
+      } else {
+        window.Telegram.WebApp.BackButton.hide();
+      }
+    }
+  };
 
   if (error) {
     return (
@@ -123,7 +157,7 @@ export default function Home() {
 
         <BottomNavigation
           active={activePage}
-          onNavigate={setActivePage}
+          onNavigate={handlePageChange}
         />
       </Box>
     </>

@@ -144,31 +144,40 @@ export async function POST(request: Request) {
   try {
     const telegramInitData = request.headers.get('x-telegram-init-data');
     if (!telegramInitData) {
+      console.error('No Telegram init data provided');
       return NextResponse.json({ error: 'No Telegram init data provided' }, { status: 401 });
     }
 
+    console.log('Проверка данных Telegram...');
     const telegramUser = await verifyTelegramWebAppData(telegramInitData);
     if (!telegramUser) {
+      console.error('Invalid Telegram init data');
       return NextResponse.json({ error: 'Invalid Telegram init data' }, { status: 401 });
     }
 
     const body = await request.json();
     const { type, amount, address } = body;
 
+    console.log('Данные транзакции:', { type, amount, address });
+
     // Проверяем тип операции
     if (!['deposit', 'withdrawal'].includes(type)) {
+      console.error('Invalid transaction type:', type);
       return NextResponse.json({ error: 'Invalid transaction type' }, { status: 400 });
     }
 
+    console.log('Поиск пользователя:', telegramUser.id);
     // Создаем транзакцию
     const user = await prisma.user.findUnique({
       where: { telegramId: telegramUser.id.toString() }
     });
 
     if (!user) {
+      console.error('User not found:', telegramUser.id);
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    console.log('Создание транзакции...');
     const transaction = await prisma.transaction.create({
       data: {
         type,
@@ -177,28 +186,31 @@ export async function POST(request: Request) {
         userId: user.id
       }
     });
+    console.log('Транзакция создана:', transaction);
 
     // Обновляем баланс кошелька
+    console.log('Обновление баланса кошелька...');
     const wallet = await prisma.wallet.findFirst({
       where: { userId: user.id }
     });
 
     if (wallet) {
+      const newBalance = type === 'deposit' 
+        ? wallet.balance + amount 
+        : wallet.balance - amount;
+      
       await prisma.wallet.update({
         where: { id: wallet.id },
-        data: {
-          balance: type === 'deposit' 
-            ? wallet.balance + amount 
-            : wallet.balance - amount
-        }
+        data: { balance: newBalance }
       });
+      console.log('Баланс обновлен:', newBalance);
     }
 
     return NextResponse.json(transaction);
   } catch (error) {
     console.error('Error in wallet API:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Internal server error: ' + (error as Error).message },
       { status: 500 }
     );
   }

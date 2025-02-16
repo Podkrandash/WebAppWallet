@@ -58,9 +58,11 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
 
 export async function getBalance(addressStr: string): Promise<{ balance: number; usdValue: string }> {
   try {
+    console.log('Получаем баланс для адреса:', addressStr);
     const address = Address.parse(addressStr);
     const balance = await client.getBalance(address);
     const balanceInTon = Number(fromNano(balance));
+    console.log('Текущий баланс:', balanceInTon, 'TON');
     
     // Обновляем цену TON каждые 5 минут
     const now = Date.now();
@@ -71,16 +73,19 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
           const data = await response.json();
           cachedPrice = data['the-open-network'].usd;
           lastPriceUpdate = now;
+          console.log('Обновлена цена TON:', cachedPrice, 'USD');
         }
       } catch (error) {
         console.error('Ошибка обновления цены:', error);
       }
     }
     
-    return {
+    const result = {
       balance: balanceInTon,
       usdValue: (balanceInTon * cachedPrice).toFixed(2)
     };
+    console.log('Возвращаем данные баланса:', result);
+    return result;
   } catch (error) {
     console.error('Ошибка получения баланса:', error);
     throw error;
@@ -89,6 +94,7 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
 
 export async function getTransactions(addressStr: string): Promise<Transaction[]> {
   try {
+    console.log('Получаем транзакции для адреса:', addressStr);
     const response = await fetch('/api/transactions', {
       headers: {
         'x-telegram-init-data': window.Telegram?.WebApp?.initData || ''
@@ -100,7 +106,9 @@ export async function getTransactions(addressStr: string): Promise<Transaction[]
       throw new Error(error.error || 'Ошибка получения транзакций');
     }
 
-    return await response.json();
+    const transactions = await response.json();
+    console.log('Получены транзакции:', transactions);
+    return transactions;
   } catch (error) {
     console.error('Ошибка получения транзакций:', error);
     throw error;
@@ -114,15 +122,21 @@ export async function sendTON(
   initData: string
 ): Promise<boolean> {
   try {
-    // Проверяем данные Telegram
-    const telegramUser = await verifyTelegramWebAppData(initData);
-    if (!telegramUser) {
-      throw new Error('Ошибка проверки данных Telegram');
-    }
+    console.log('Отправка TON:', {
+      from: fromAddressStr,
+      to: toAddressStr,
+      amount: amount,
+      commission: COMMISSION_FEE
+    });
 
     // Проверяем баланс
     const { balance } = await getBalance(fromAddressStr);
     const totalAmount = amount + COMMISSION_FEE;
+    console.log('Проверка баланса:', {
+      balance: balance,
+      required: totalAmount,
+      difference: balance - totalAmount
+    });
     
     if (balance < totalAmount) {
       throw new Error(`Недостаточно средств. Нужно: ${totalAmount} TON (включая комиссию ${COMMISSION_FEE} TON)`);
@@ -134,28 +148,8 @@ export async function sendTON(
       throw new Error('Кошелёк не найден');
     }
 
-    // Расшифровываем приватный ключ
-    const encoder = new TextEncoder();
-    const secretKey = await crypto.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv: encoder.encode(initData.slice(0, 12))
-      },
-      await crypto.subtle.importKey(
-        'raw',
-        encoder.encode(process.env.ENCRYPTION_KEY || ''),
-        { name: 'AES-GCM' },
-        false,
-        ['decrypt']
-      ),
-      Buffer.from(walletData.encryptedKey, 'hex')
-    );
-
-    const keyPair: KeyPair = {
-      publicKey: Buffer.from(walletData.publicKey, 'hex'),
-      secretKey: Buffer.from(secretKey)
-    };
-
+    console.log('Подготовка транзакции...');
+    const keyPair = await decryptKeyPair(walletData, initData);
     const wallet = WalletContractV4.create({
       publicKey: keyPair.publicKey,
       workchain: 0
@@ -163,8 +157,10 @@ export async function sendTON(
 
     const contract = client.open(wallet);
     const seqno = await contract.getSeqno();
+    console.log('Текущий seqno:', seqno);
     
     // Отправляем платёж и комиссию
+    console.log('Отправка транзакций...');
     await contract.sendTransfer({
       secretKey: keyPair.secretKey,
       seqno,
@@ -184,22 +180,26 @@ export async function sendTON(
         })
       ]
     });
+    console.log('Транзакции отправлены успешно');
 
-    // Сохраняем транзакцию в базе данных
-    const dbWallet = await prisma.wallet.findUnique({
-      where: { address: fromAddressStr }
+    // Сохраняем в базу данных
+    const response = await fetch('/api/wallet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-init-data': initData
+      },
+      body: JSON.stringify({
+        type: 'withdrawal',
+        amount: totalAmount,
+        address: toAddressStr
+      })
     });
 
-    if (dbWallet) {
-      await prisma.transaction.create({
-        data: {
-          type: 'withdrawal',
-          amount: totalAmount,
-          address: toAddressStr,
-          userId: dbWallet.userId,
-          timestamp: new Date()
-        }
-      });
+    if (!response.ok) {
+      console.error('Ошибка сохранения транзакции:', await response.json());
+    } else {
+      console.log('Транзакция сохранена в базе данных');
     }
 
     return true;
@@ -207,4 +207,29 @@ export async function sendTON(
     console.error('Ошибка отправки TON:', error);
     throw error;
   }
+}
+
+// Вспомогательная функция для расшифровки ключей
+async function decryptKeyPair(walletData: WalletData, initData: string): Promise<KeyPair> {
+  console.log('Расшифровка ключей кошелька...');
+  const encoder = new TextEncoder();
+  const secretKey = await crypto.subtle.decrypt(
+    {
+      name: 'AES-GCM',
+      iv: encoder.encode(initData.slice(0, 12))
+    },
+    await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(process.env.ENCRYPTION_KEY || ''),
+      { name: 'AES-GCM' },
+      false,
+      ['decrypt']
+    ),
+    Buffer.from(walletData.encryptedKey, 'hex')
+  );
+
+  return {
+    publicKey: Buffer.from(walletData.publicKey, 'hex'),
+    secretKey: Buffer.from(secretKey)
+  };
 } 
