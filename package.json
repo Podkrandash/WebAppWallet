@@ -6,14 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "vercel-build": "next build"
+    "lint": "next lint"
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",
     "@mantine/core": "^7.0.0",
     "@mantine/hooks": "^7.0.0",
-    "@prisma/client": "^6.3.1",
     "@tabler/icons-react": "^2.47.0",
     "@ton/core": "^0.56.0",
     "@ton/crypto": "^3.2.0",
@@ -27,17 +25,19 @@
     "next": "14.0.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",
+    "sequelize": "^6.35.1",
+    "sqlite3": "^5.1.6",
     "ton-crypto": "^3.2.0"
   },
   "devDependencies": {
     "@types/node": "20.10.6",
     "@types/react": "18.2.0",
     "@types/react-dom": "18.2.0",
+    "@types/sequelize": "^4.28.20",
     "eslint": "8.56.0",
     "eslint-config-next": "14.0.4",
     "postcss": "^8.4.35",
     "postcss-preset-mantine": "^1.13.0",
-    "prisma": "^6.3.1",
     "typescript": "5.3.3"
   },
   "resolutions": {

@@ -120,17 +120,19 @@ export function stopBalanceSync(address: string) {
 // Функция для получения кошелька от бота
 async function getWalletFromBot(telegramId: string): Promise<WalletData | null> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`, {
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`,
+      {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache'
+        },
+        credentials: 'include'
       }
-    });
+    );
     
     if (response.status === 404) {
-      // Если кошелек не найден, очищаем локальное хранилище
-      const storage = getStorage(telegramId);
-      await storage.clear();
+      console.log('Wallet not found for telegramId:', telegramId);
       return null;
     }
     
@@ -139,6 +141,8 @@ async function getWalletFromBot(telegramId: string): Promise<WalletData | null> 
     }
     
     const data = await response.json();
+    console.log('Received wallet data:', data);
+    
     return {
       address: data.address,
       publicKey: data.publicKey,
