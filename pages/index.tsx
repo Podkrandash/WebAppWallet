@@ -159,12 +159,13 @@ export default function Home() {
       />
       <Box 
         style={{ 
-          minHeight: '100vh',
+          height: '100vh',
           background: '#F2F2F7',
-          paddingBottom: '80px' // Добавляем отступ для навигационной панели
+          display: 'flex',
+          flexDirection: 'column'
         }}
       >
-        <Box py="xl" pos="relative">
+        <Box style={{ flex: 1, position: 'relative' }}>
           <LoadingOverlay visible={loading} />
           
           {activePage === 'wallet' && wallet && (

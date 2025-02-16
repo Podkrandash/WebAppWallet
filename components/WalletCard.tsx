@@ -61,150 +61,177 @@ export default function WalletCard({
   };
 
   return (
-    <Box 
-      px="md" 
-      pb={80}
-      style={{ 
-        maxWidth: '600px', 
-        margin: '0 auto',
-        overflowX: 'hidden'
-      }}
-    >
-      {/* Основной баланс */}
-      <Stack gap="xs" align="center" mb="md">
-        <Text size="xl" fw={700} style={{ fontSize: '32px' }}>
-          {usdValue} ₽
-        </Text>
-        <Text size="sm" c="dimmed">
-          Ваш адрес: {address.slice(0, 4)}...{address.slice(-4)}
-        </Text>
-      </Stack>
-
-      {/* Кнопки действий */}
-      <SimpleGrid 
-        cols={{ base: 3, xs: 6 }} 
-        mb="xl" 
+    <Box style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Фиксированная верхняя часть */}
+      <Box 
         style={{ 
-          maxWidth: '100%',
-          overflow: 'hidden'
+          padding: '16px',
+          background: '#F2F2F7',
+          position: 'sticky',
+          top: 0,
+          zIndex: 100
         }}
       >
-        <Stack gap={4} align="center">
-          <ActionIcon 
-            variant="light" 
-            color="blue" 
-            size="xl" 
-            radius="xl"
-            onClick={() => setSendModalOpen(true)}
-          >
-            <IconSend size={20} />
-          </ActionIcon>
-          <Text size="xs">Отправить</Text>
+        {/* Основной баланс */}
+        <Stack gap="xs" align="center" mb="md">
+          <Text size="xl" fw={700} style={{ fontSize: '32px' }}>
+            {usdValue} ₽
+          </Text>
+          <Text size="sm" c="dimmed">
+            Ваш адрес: {address.slice(0, 4)}...{address.slice(-4)}
+          </Text>
         </Stack>
 
-        <Stack gap={4} align="center">
-          <ActionIcon 
-            variant="light" 
-            color="blue" 
-            size="xl" 
-            radius="xl"
-            onClick={() => {
-              navigator.clipboard.writeText(address);
-              window.Telegram?.WebApp?.showAlert('Адрес скопирован');
+        {/* Кнопки действий */}
+        <SimpleGrid cols={{ base: 3, xs: 6 }} mb="md">
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl" 
+              radius="xl"
+              onClick={() => setSendModalOpen(true)}
+            >
+              <IconSend size={20} />
+            </ActionIcon>
+            <Text size="xs">Отправить</Text>
+          </Stack>
+
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl" 
+              radius="xl"
+              onClick={() => {
+                navigator.clipboard.writeText(address);
+                window.Telegram?.WebApp?.showAlert('Адрес скопирован');
+              }}
+            >
+              <IconDownload size={20} />
+            </ActionIcon>
+            <Text size="xs">Получить</Text>
+          </Stack>
+
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl" 
+              radius="xl"
+            >
+              <IconQrcode size={20} />
+            </ActionIcon>
+            <Text size="xs">Сканировать</Text>
+          </Stack>
+
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl" 
+              radius="xl"
+            >
+              <IconArrowsExchange size={20} />
+            </ActionIcon>
+            <Text size="xs">Обменять</Text>
+          </Stack>
+
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl" 
+              radius="xl"
+            >
+              <IconCoin size={20} />
+            </ActionIcon>
+            <Text size="xs">Купить TON</Text>
+          </Stack>
+
+          <Stack gap={4} align="center">
+            <ActionIcon 
+              variant="light" 
+              color="blue" 
+              size="xl" 
+              radius="xl"
+            >
+              <IconLock size={20} />
+            </ActionIcon>
+            <Text size="xs">Застейкать</Text>
+          </Stack>
+        </SimpleGrid>
+      </Box>
+
+      {/* Скроллируемый список токенов */}
+      <Box 
+        style={{ 
+          flex: 1,
+          overflowY: 'auto',
+          padding: '16px',
+          paddingBottom: '80px'
+        }}
+      >
+        <Stack gap="xs">
+          <Paper 
+            p="md" 
+            radius="md"
+            style={{
+              background: 'rgba(255, 255, 255, 0.5)',
+              backdropFilter: 'blur(10px)'
             }}
           >
-            <IconDownload size={20} />
-          </ActionIcon>
-          <Text size="xs">Получить</Text>
-        </Stack>
-
-        <Stack gap={4} align="center">
-          <ActionIcon 
-            variant="light" 
-            color="blue" 
-            size="xl" 
-            radius="xl"
-          >
-            <IconQrcode size={20} />
-          </ActionIcon>
-          <Text size="xs">Сканировать</Text>
-        </Stack>
-
-        <Stack gap={4} align="center">
-          <ActionIcon 
-            variant="light" 
-            color="blue" 
-            size="xl" 
-            radius="xl"
-          >
-            <IconArrowsExchange size={20} />
-          </ActionIcon>
-          <Text size="xs">Обменять</Text>
-        </Stack>
-
-        <Stack gap={4} align="center">
-          <ActionIcon 
-            variant="light" 
-            color="blue" 
-            size="xl" 
-            radius="xl"
-          >
-            <IconCoin size={20} />
-          </ActionIcon>
-          <Text size="xs">Купить TON</Text>
-        </Stack>
-
-        <Stack gap={4} align="center">
-          <ActionIcon 
-            variant="light" 
-            color="blue" 
-            size="xl" 
-            radius="xl"
-          >
-            <IconLock size={20} />
-          </ActionIcon>
-          <Text size="xs">Застейкать</Text>
-        </Stack>
-      </SimpleGrid>
-
-      {/* Список токенов */}
-      <Stack 
-        gap="xs" 
-        style={{ 
-          maxWidth: '100%',
-          overflow: 'hidden'
-        }}
-      >
-        <Paper 
-          p="md" 
-          radius="md"
-          style={{
-            background: 'rgba(255, 255, 255, 0.5)',
-            backdropFilter: 'blur(10px)'
-          }}
-        >
-          <Group justify="space-between" align="flex-start">
-            <Group>
-              <Text size="xl">💎</Text>
-              <div>
-                <Group gap={4}>
-                  <Text size="sm" fw={500}>TON</Text>
-                </Group>
-                <Group gap={4}>
-                  <Text size="xs" c="dimmed">{(balance * 3.5).toFixed(2)} ₽</Text>
-                  <Text size="xs" c="green">+0.48%</Text>
-                </Group>
+            <Group justify="space-between" align="flex-start">
+              <Group>
+                <Text size="xl">💎</Text>
+                <div>
+                  <Group gap={4}>
+                    <Text size="sm" fw={500}>TON</Text>
+                  </Group>
+                  <Group gap={4}>
+                    <Text size="xs" c="dimmed">{(balance * 3.5).toFixed(2)} ₽</Text>
+                    <Text size="xs" c="green">+0.48%</Text>
+                  </Group>
+                </div>
+              </Group>
+              <div style={{ textAlign: 'right' }}>
+                <Text size="sm" fw={500}>{balance.toFixed(4)}</Text>
+                <Text size="xs" c="dimmed">
+                  {(balance * 3.5).toFixed(2)} ₽
+                </Text>
               </div>
             </Group>
-            <div style={{ textAlign: 'right' }}>
-              <Text size="sm" fw={500}>{balance.toFixed(4)}</Text>
-              <Text size="xs" c="dimmed">
-                {(balance * 3.5).toFixed(2)} ₽
-              </Text>
-            </div>
-          </Group>
-        </Paper>
-      </Stack>
+          </Paper>
+          {/* Добавим несколько тестовых токенов для демонстрации скролла */}
+          {Array.from({ length: 20 }).map((_, index) => (
+            <Paper 
+              key={index}
+              p="md" 
+              radius="md"
+              style={{
+                background: 'rgba(255, 255, 255, 0.5)',
+                backdropFilter: 'blur(10px)'
+              }}
+            >
+              <Group justify="space-between" align="flex-start">
+                <Group>
+                  <Text size="xl">🪙</Text>
+                  <div>
+                    <Group gap={4}>
+                      <Text size="sm" fw={500}>Token {index + 1}</Text>
+                    </Group>
+                    <Text size="xs" c="dimmed">0.00 ₽</Text>
+                  </div>
+                </Group>
+                <div style={{ textAlign: 'right' }}>
+                  <Text size="sm" fw={500}>0.0000</Text>
+                  <Text size="xs" c="dimmed">0.00 ₽</Text>
+                </div>
+              </Group>
+            </Paper>
+          ))}
+        </Stack>
+      </Box>
 
       {/* Модальное окно отправки */}
       <Modal

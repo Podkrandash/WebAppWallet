@@ -12,10 +12,8 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
       shadow="sm"
       p="md" 
       style={{ 
-        position: 'fixed', 
+        position: 'sticky', 
         bottom: 0,
-        left: 0,
-        right: 0,
         width: '100%',
         background: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
