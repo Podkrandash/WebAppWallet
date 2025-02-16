@@ -42,6 +42,21 @@ export default function Home() {
   const [activePage, setActivePage] = useState<'wallet' | 'history'>('wallet');
   const [error, setError] = useState<string | null>(null);
   const [initData, setInitData] = useState<string>('');
+  const [isClient, setIsClient] = useState(false);
+
+  // Определяем, что мы на клиенте
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Если мы на сервере, возвращаем загрузочный экран
+  if (!isClient) {
+    return (
+      <Box style={{ minHeight: '100vh', background: '#F2F2F7' }}>
+        <LoadingOverlay visible={true} />
+      </Box>
+    );
+  }
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -132,7 +147,7 @@ export default function Home() {
   // Обработчик смены страницы
   const handlePageChange = (page: 'wallet' | 'history') => {
     setActivePage(page);
-    if (window.Telegram?.WebApp) {
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
       if (page === 'history') {
         window.Telegram.WebApp.BackButton.show();
       } else {
@@ -141,7 +156,11 @@ export default function Home() {
     }
   };
 
-  if (!window?.Telegram?.WebApp && typeof window !== 'undefined') {
+  // Проверяем доступность Telegram Web App только на клиенте
+  const isBrowser = typeof window !== 'undefined';
+  const isTelegramWebAppMissing = isBrowser && !window?.Telegram?.WebApp;
+
+  if (isTelegramWebAppMissing) {
     return (
       <Container size="sm" py="xl">
         <Alert icon={<IconAlertCircle size={16} />} title="Ошибка" color="red">
