@@ -25,6 +25,7 @@ declare global {
         enableClosingConfirmation: () => void;
         setHeaderColor: (color: string) => void;
         setBackgroundColor: (color: string) => void;
+        setViewportHeight: (height: number) => void;
         BackButton: {
           onClick: (callback: () => void) => void;
           hide: () => void;
@@ -53,10 +54,20 @@ export default function Home() {
 
       // Настраиваем внешний вид
       const webapp = window.Telegram.WebApp;
-      webapp.expand(); // Разворачиваем на весь экран
-      webapp.enableClosingConfirmation(); // Подтверждение закрытия
-      webapp.setHeaderColor('#0A84FF'); // Цвет хедера в тон приложения
-      webapp.setBackgroundColor('#F2F2F7'); // Цвет фона
+      
+      // Принудительно устанавливаем полноэкранный режим
+      const forceFullscreen = () => {
+        webapp.expand();
+        webapp.setViewportHeight(100);
+      };
+
+      // Вызываем сразу и после загрузки
+      forceFullscreen();
+      window.addEventListener('load', forceFullscreen);
+      
+      webapp.enableClosingConfirmation();
+      webapp.setHeaderColor('#0A84FF');
+      webapp.setBackgroundColor('#F2F2F7');
 
       // Обработка кнопки "Назад"
       webapp.BackButton.onClick(() => {
@@ -66,7 +77,7 @@ export default function Home() {
         }
       });
 
-      webapp.ready(); // Сообщаем Telegram что приложение готово
+      webapp.ready();
 
       const webAppInitData = webapp.initData;
       if (!webAppInitData) {
@@ -102,6 +113,11 @@ export default function Home() {
           setError('Ошибка инициализации кошелька: ' + err.message);
         })
         .finally(() => setLoading(false));
+
+      // Очистка при размонтировании
+      return () => {
+        window.removeEventListener('load', forceFullscreen);
+      };
     }
   }, [activePage]);
 
