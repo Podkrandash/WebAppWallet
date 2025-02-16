@@ -70,8 +70,10 @@ const syncIntervals = new Map<string, NodeJS.Timeout>();
 // Добавляем кэш для баланса и цены
 const balanceCache = new Map<string, { balance: number; timestamp: number }>();
 const priceCache = new Map<string, { price: number; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+const CACHE_TTL = 30 * 60 * 1000; // Увеличиваем до 30 минут
+const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 минут между обновлениями цены
 const FALLBACK_PRICE = 3.5;
+let lastPriceUpdate = 0;
 
 export function startBalanceSync(address: string, telegramId: string) {
   if (syncIntervals.has(address)) {
@@ -118,10 +120,24 @@ export function stopBalanceSync(address: string) {
 // Функция для получения кошелька от бота
 async function getWalletFromBot(telegramId: string): Promise<WalletData | null> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`);
-    if (!response.ok) {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`, {
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    });
+    
+    if (response.status === 404) {
+      // Если кошелек не найден, очищаем локальное хранилище
+      const storage = getStorage(telegramId);
+      await storage.clear();
       return null;
     }
+    
+    if (!response.ok) {
+      throw new Error(`Failed to get wallet: ${response.status}`);
+    }
+    
     const data = await response.json();
     return {
       address: data.address,
@@ -135,9 +151,32 @@ async function getWalletFromBot(telegramId: string): Promise<WalletData | null> 
   }
 }
 
+// Функция для очистки всех хранилищ
+async function clearAllStorages() {
+  try {
+    // Получаем список всех хранилищ
+    const stores = await localforage.keys();
+    
+    // Очищаем каждое хранилище
+    for (const store of stores) {
+      const instance = localforage.createInstance({ name: store });
+      await instance.clear();
+    }
+    
+    // Очищаем кэши
+    balanceCache.clear();
+    priceCache.clear();
+    syncIntervals.forEach((interval) => clearInterval(interval));
+    syncIntervals.clear();
+    
+    console.log('All storages cleared');
+  } catch (error) {
+    console.error('Error clearing storages:', error);
+  }
+}
+
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
-    // Проверяем и получаем данные пользователя Telegram
     const telegramUser = await verifyTelegramWebAppData(initData);
     if (!telegramUser) {
       console.error('Invalid Telegram WebApp data');
@@ -145,17 +184,13 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
     }
 
     const telegramId = telegramUser.id.toString();
+    
+    // Очищаем все старые хранилища перед инициализацией
+    await clearAllStorages();
+    
     const storage = getStorage(telegramId);
 
-    // Сначала проверяем локальное хранилище
-    const existingWallet = await storage.getItem<WalletData>('wallet');
-    if (existingWallet && existingWallet.telegramId === telegramId) {
-      console.log('Using existing wallet from storage');
-      startBalanceSync(existingWallet.address, telegramId);
-      return existingWallet;
-    }
-
-    // Если нет в локальном хранилище, получаем от бота
+    // Всегда пытаемся получить актуальный кошелек от бота
     const botWallet = await getWalletFromBot(telegramId);
     if (botWallet) {
       console.log('Using wallet from bot');
@@ -164,8 +199,7 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       return botWallet;
     }
 
-    // Если кошелька нет ни в хранилище, ни у бота - возвращаем ошибку
-    console.error('No wallet found');
+    // Если кошелек не найден у бота, возвращаем ошибку
     throw new Error('Wallet not found. Please start the bot first with /start command');
   } catch (error) {
     console.error('Error in initWallet:', error);
@@ -175,24 +209,12 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
 
 export async function getBalance(addressStr: string): Promise<{ balance: number; usdValue: string }> {
   try {
-    // Проверяем кэш
-    const cached = balanceCache.get(addressStr);
-    const now = Date.now();
-    if (cached && now - cached.timestamp < CACHE_TTL) {
-      const cachedPrice = priceCache.get('TON');
-      const price = cachedPrice && now - cachedPrice.timestamp < CACHE_TTL 
-        ? cachedPrice.price 
-        : FALLBACK_PRICE;
-      
-      return {
-        balance: cached.balance,
-        usdValue: (cached.balance * price).toFixed(2)
-      };
-    }
-
+    // Получаем баланс
     const address = Address.parse(addressStr);
     const balance = await client.getBalance(address);
     const balanceInTon = Number(fromNano(balance));
+    
+    const now = Date.now();
     
     // Обновляем кэш баланса
     balanceCache.set(addressStr, {
@@ -200,47 +222,44 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
       timestamp: now
     });
 
-    try {
-      // Пытаемся получить актуальную цену
-      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd', {
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'Earth Wallet WebApp'
+    // Проверяем, нужно ли обновлять цену
+    if (now - lastPriceUpdate >= PRICE_UPDATE_INTERVAL) {
+      try {
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd', {
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Earth Wallet WebApp'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const price = data['the-open-network'].usd;
+          
+          priceCache.set('TON', {
+            price,
+            timestamp: now
+          });
+          lastPriceUpdate = now;
+          
+          return {
+            balance: balanceInTon,
+            usdValue: (balanceInTon * price).toFixed(2)
+          };
         }
-      });
-
-      if (response.status === 429) {
-        // Используем кэшированную цену или фиксированную
-        const cachedPrice = priceCache.get('TON');
-        const price = cachedPrice ? cachedPrice.price : FALLBACK_PRICE;
-        return {
-          balance: balanceInTon,
-          usdValue: (balanceInTon * price).toFixed(2)
-        };
+      } catch (error) {
+        console.error('Error updating price:', error);
       }
-
-      const data = await response.json();
-      const price = data['the-open-network'].usd;
-      
-      // Обновляем кэш цены
-      priceCache.set('TON', {
-        price,
-        timestamp: now
-      });
-      
-      return {
-        balance: balanceInTon,
-        usdValue: (balanceInTon * price).toFixed(2)
-      };
-    } catch (error) {
-      // В случае ошибки используем кэшированную цену или фиксированную
-      const cachedPrice = priceCache.get('TON');
-      const price = cachedPrice ? cachedPrice.price : FALLBACK_PRICE;
-      return {
-        balance: balanceInTon,
-        usdValue: (balanceInTon * price).toFixed(2)
-      };
     }
+    
+    // Используем кэшированную цену или фиксированную
+    const cachedPrice = priceCache.get('TON');
+    const price = cachedPrice ? cachedPrice.price : FALLBACK_PRICE;
+    
+    return {
+      balance: balanceInTon,
+      usdValue: (balanceInTon * price).toFixed(2)
+    };
   } catch (error) {
     console.error('Error getting balance:', error);
     throw error;
