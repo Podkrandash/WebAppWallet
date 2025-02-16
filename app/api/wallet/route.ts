@@ -5,36 +5,31 @@ import { TonClient, WalletContractV4 } from '@ton/ton';
 import { getSecureRandomBytes, keyPairFromSeed } from '@ton/crypto';
 import crypto from 'crypto';
 
-// Инициализация TON клиента
-const TONCENTER_API_KEY = process.env.TONCENTER_API_KEY;
-if (!TONCENTER_API_KEY) {
-  throw new Error('TONCENTER_API_KEY not found in environment variables');
-}
-
-const client = new TonClient({
-  endpoint: 'https://toncenter.com/api/v2/jsonRPC',
-  apiKey: TONCENTER_API_KEY
-});
-
-// Функция для шифрования приватного ключа
-function encryptPrivateKey(privateKey: string, initData: string): string {
-  const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
-  if (!ENCRYPTION_KEY) {
-    throw new Error('ENCRYPTION_KEY not found in environment variables');
-  }
-
-  const algorithm = 'aes-256-gcm';
-  const iv = crypto.randomBytes(12);
-  const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
-  const cipher = crypto.createCipheriv(algorithm, key, iv);
-  let encrypted = cipher.update(privateKey, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  const authTag = cipher.getAuthTag();
-  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
-}
-
 export async function GET(request: Request) {
   try {
+    // Проверяем наличие необходимых переменных окружения
+    const TONCENTER_API_KEY = process.env.TONCENTER_API_KEY;
+    if (!TONCENTER_API_KEY) {
+      return NextResponse.json(
+        { error: 'TONCENTER_API_KEY not found in environment variables' },
+        { status: 500 }
+      );
+    }
+
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+    if (!ENCRYPTION_KEY) {
+      return NextResponse.json(
+        { error: 'ENCRYPTION_KEY not found in environment variables' },
+        { status: 500 }
+      );
+    }
+
+    // Инициализация TON клиента
+    const client = new TonClient({
+      endpoint: 'https://toncenter.com/api/v2/jsonRPC',
+      apiKey: TONCENTER_API_KEY
+    });
+
     const telegramInitData = request.headers.get('x-telegram-init-data');
     if (!telegramInitData) {
       return NextResponse.json({ error: 'No Telegram init data provided' }, { status: 401 });
@@ -126,6 +121,23 @@ export async function GET(request: Request) {
       { status: 500 }
     );
   }
+}
+
+// Функция для шифрования приватного ключа
+function encryptPrivateKey(privateKey: string, initData: string): string {
+  const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+  if (!ENCRYPTION_KEY) {
+    throw new Error('ENCRYPTION_KEY not found in environment variables');
+  }
+
+  const algorithm = 'aes-256-gcm';
+  const iv = crypto.randomBytes(12);
+  const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+  const cipher = crypto.createCipheriv(algorithm, key, iv);
+  let encrypted = cipher.update(privateKey, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const authTag = cipher.getAuthTag();
+  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
 }
 
 export async function POST(request: Request) {
