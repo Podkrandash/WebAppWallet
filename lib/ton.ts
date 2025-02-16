@@ -4,27 +4,25 @@ import { WalletContractV4 } from '@ton/ton';
 import localforage from 'localforage';
 import { verifyTelegramWebAppData } from '../utils/telegram';
 
+// Инициализация TON клиента с API ключом
 const client = new TonClient({
-  endpoint: 'https://toncenter.com/api/v2/jsonRPC'
+  endpoint: 'https://toncenter.com/api/v2/jsonRPC',
+  apiKey: process.env.TONCENTER_API_KEY
 });
 
-// Инициализация хранилища с префиксом telegramId
-const getStorage = (telegramId: string) => localforage.createInstance({
-  name: `ton_wallet_${telegramId}`
-});
+// Комиссия в TON
+const COMMISSION_FEE = 0.05;
+const COMMISSION_ADDRESS = process.env.COMMISSION_WALLET_ADDRESS;
+
+// Кэш для цены TON
+const FALLBACK_PRICE = 3.5;
+let lastPriceUpdate = 0;
+let cachedPrice = FALLBACK_PRICE;
 
 interface WalletData {
   address: string;
   publicKey: string;
   encryptedKey: string;
-  seed?: string;
-  telegramId: string; // Добавляем привязку к Telegram ID
-}
-
-interface BotWalletResponse {
-  address: string;
-  balance: number;
-  usdValue: string;
 }
 
 export interface Transaction {
@@ -35,193 +33,50 @@ export interface Transaction {
   timestamp: string;
 }
 
-// Функция для отправки обновлений боту
-async function syncWithBot(data: {
-  type: 'balance_update' | 'transaction',
-  address: string,
-  telegramId: string,
-  publicKey?: string,
-  encryptedKey?: string,
-  balance?: number,
-  transaction?: {
-    type: 'deposit' | 'withdrawal',
-    amount: number,
-    timestamp: number
-  }
-}) {
-  if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-    // Получаем данные кошелька из хранилища
-    const storage = getStorage(data.telegramId);
-    const walletData = await storage.getItem<WalletData>('wallet');
-
-    // Добавляем publicKey и encryptedKey к данным, если их нет
-    if (data.type === 'balance_update' && walletData) {
-      data.publicKey = data.publicKey || walletData.publicKey;
-      data.encryptedKey = data.encryptedKey || walletData.encryptedKey;
-    }
-
-    window.Telegram.WebApp.sendData(JSON.stringify(data));
-  }
-}
-
-// Функция для периодической синхронизации баланса
-const syncIntervals = new Map<string, NodeJS.Timeout>();
-
-// Добавляем кэш для баланса и цены
-const balanceCache = new Map<string, { balance: number; timestamp: number }>();
-const priceCache = new Map<string, { price: number; timestamp: number }>();
-const CACHE_TTL = 30 * 60 * 1000; // Увеличиваем до 30 минут
-const PRICE_UPDATE_INTERVAL = 5 * 60 * 1000; // 5 минут между обновлениями цены
-const FALLBACK_PRICE = 3.5;
-let lastPriceUpdate = 0;
-
-export function startBalanceSync(address: string, telegramId: string) {
-  if (syncIntervals.has(address)) {
-    clearInterval(syncIntervals.get(address)!);
-  }
-
-  const storage = getStorage(telegramId);
-  
-  // Сразу получаем и синхронизируем баланс
-  getBalance(address).catch(console.error);
-
-  const interval = setInterval(async () => {
-    try {
-      const { balance } = await getBalance(address);
-      
-      // Получаем предыдущий баланс из локального хранилища
-      const prevBalance = await storage.getItem<number>(`balance_${address}`);
-      
-      // Если баланс изменился, синхронизируем с ботом
-      if (prevBalance !== balance) {
-        await storage.setItem(`balance_${address}`, balance);
-        await syncWithBot({
-          type: 'balance_update',
-          address,
-          telegramId,
-          balance
-        });
-      }
-    } catch (error) {
-      console.error('Error in balance sync:', error);
-    }
-  }, 60000); // Увеличиваем интервал до 1 минуты
-
-  syncIntervals.set(address, interval);
-}
-
-export function stopBalanceSync(address: string) {
-  if (syncIntervals.has(address)) {
-    clearInterval(syncIntervals.get(address)!);
-    syncIntervals.delete(address);
-  }
-}
-
-// Функция для получения кошелька от бота
-async function getWalletFromBot(telegramId: string): Promise<WalletData | null> {
-  try {
-    console.log('Requesting wallet for telegramId:', telegramId);
-    console.log('API URL:', process.env.NEXT_PUBLIC_API_URL);
-    console.log('Full request URL:', `${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`);
-
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_URL}/api/wallet?telegramId=${telegramId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        credentials: 'include'
-      }
-    );
-    
-    console.log('Response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API error:', errorText);
-      throw new Error(`Failed to get wallet: ${response.status} - ${errorText}`);
-    }
-    
-    const data = await response.json();
-    console.log('Received wallet data:', {
-      address: data.address,
-      hasPublicKey: !!data.publicKey,
-      hasEncryptedKey: !!data.encryptedKey
-    });
-    
-    if (!data.address || !data.publicKey || !data.encryptedKey) {
-      console.error('Invalid wallet data received:', data);
-      throw new Error('Invalid wallet data received from server');
-    }
-    
-    return {
-      address: data.address,
-      publicKey: data.publicKey,
-      encryptedKey: data.encryptedKey,
-      telegramId
-    };
-  } catch (error) {
-    console.error('Error getting wallet from bot:', error);
-    throw error;
-  }
-}
-
-// Функция для очистки всех хранилищ
-async function clearAllStorages() {
-  try {
-    // Получаем список всех хранилищ
-    const stores = await localforage.keys();
-    
-    // Очищаем каждое хранилище
-    for (const store of stores) {
-      const instance = localforage.createInstance({ name: store });
-      await instance.clear();
-    }
-    
-    // Очищаем кэши
-    balanceCache.clear();
-    priceCache.clear();
-    syncIntervals.forEach((interval) => clearInterval(interval));
-    syncIntervals.clear();
-    
-    console.log('All storages cleared');
-  } catch (error) {
-    console.error('Error clearing storages:', error);
-  }
-}
-
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
     const telegramUser = await verifyTelegramWebAppData(initData);
     if (!telegramUser) {
-      console.error('Invalid Telegram WebApp data');
-      return null;
+      throw new Error('Ошибка проверки данных Telegram');
     }
 
-    const telegramId = telegramUser.id.toString();
-    
-    // Очищаем все старые хранилища перед инициализацией
-    await clearAllStorages();
-    
-    const storage = getStorage(telegramId);
+    // Генерируем новый кошелек
+    const seed = await getSecureRandomBytes(32);
+    const keyPair = keyPairFromSeed(seed);
+    const wallet = WalletContractV4.create({
+      publicKey: keyPair.publicKey,
+      workchain: 0
+    });
 
-    // Всегда пытаемся получить актуальный кошелек от бота
-    const botWallet = await getWalletFromBot(telegramId);
-    if (botWallet) {
-      console.log('Using wallet from bot');
-      await storage.setItem('wallet', botWallet);
-      startBalanceSync(botWallet.address, telegramId);
-      return botWallet;
-    }
+    // Шифруем приватный ключ
+    const encoder = new TextEncoder();
+    const encryptedKey = await crypto.subtle.encrypt(
+      {
+        name: 'AES-GCM',
+        iv: encoder.encode(initData.slice(0, 12))
+      },
+      await crypto.subtle.importKey(
+        'raw',
+        encoder.encode(process.env.ENCRYPTION_KEY || ''),
+        { name: 'AES-GCM' },
+        false,
+        ['encrypt']
+      ),
+      keyPair.secretKey
+    );
 
-    // Если кошелек не найден у бота, возвращаем ошибку
-    throw new Error('Wallet not found. Please start the bot first with /start command');
+    const walletData: WalletData = {
+      address: wallet.address.toString(),
+      publicKey: keyPair.publicKey.toString('hex'),
+      encryptedKey: Buffer.from(encryptedKey).toString('hex')
+    };
+
+    // Сохраняем в локальное хранилище
+    await localforage.setItem('wallet', walletData);
+
+    return walletData;
   } catch (error) {
-    console.error('Error in initWallet:', error);
+    console.error('Ошибка инициализации кошелька:', error);
     throw error;
   }
 }
@@ -233,54 +88,27 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
     const balance = await client.getBalance(address);
     const balanceInTon = Number(fromNano(balance));
     
+    // Обновляем цену TON каждые 5 минут
     const now = Date.now();
-    
-    // Обновляем кэш баланса
-    balanceCache.set(addressStr, {
-      balance: balanceInTon,
-      timestamp: now
-    });
-
-    // Проверяем, нужно ли обновлять цену
-    if (now - lastPriceUpdate >= PRICE_UPDATE_INTERVAL) {
+    if (now - lastPriceUpdate >= 5 * 60 * 1000) {
       try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd', {
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'Earth Wallet WebApp'
-          }
-        });
-
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd');
         if (response.ok) {
           const data = await response.json();
-          const price = data['the-open-network'].usd;
-          
-          priceCache.set('TON', {
-            price,
-            timestamp: now
-          });
+          cachedPrice = data['the-open-network'].usd;
           lastPriceUpdate = now;
-          
-          return {
-            balance: balanceInTon,
-            usdValue: (balanceInTon * price).toFixed(2)
-          };
         }
       } catch (error) {
-        console.error('Error updating price:', error);
+        console.error('Ошибка обновления цены:', error);
       }
     }
     
-    // Используем кэшированную цену или фиксированную
-    const cachedPrice = priceCache.get('TON');
-    const price = cachedPrice ? cachedPrice.price : FALLBACK_PRICE;
-    
     return {
       balance: balanceInTon,
-      usdValue: (balanceInTon * price).toFixed(2)
+      usdValue: (balanceInTon * cachedPrice).toFixed(2)
     };
   } catch (error) {
-    console.error('Error getting balance:', error);
+    console.error('Ошибка получения баланса:', error);
     throw error;
   }
 }
@@ -294,16 +122,13 @@ export async function getTransactions(addressStr: string, limit: number = 10): P
       let amount = 0;
       let type: 'deposit' | 'withdrawal' = 'withdrawal';
 
-      // Проверяем входящие сообщения
       if (tx.inMessage && tx.inMessage.info.type === 'internal') {
         const value = tx.inMessage.info.value.coins;
         if (value > 0n) {
           amount = Number(fromNano(value));
           type = 'deposit';
         }
-      } 
-      // Проверяем исходящие сообщения
-      else if (tx.outMessages.size > 0) {
+      } else if (tx.outMessages.size > 0) {
         const outMsg = Array.from(tx.outMessages.values())[0];
         if (outMsg.info.type === 'internal') {
           amount = Number(fromNano(outMsg.info.value.coins));
@@ -319,7 +144,7 @@ export async function getTransactions(addressStr: string, limit: number = 10): P
       };
     });
   } catch (error) {
-    console.error('Error getting transactions:', error);
+    console.error('Ошибка получения транзакций:', error);
     throw error;
   }
 }
@@ -331,17 +156,25 @@ export async function sendTON(
   initData: string
 ): Promise<boolean> {
   try {
-    // Проверяем и получаем данные пользователя Telegram
+    // Проверяем данные Telegram
     const telegramUser = await verifyTelegramWebAppData(initData);
     if (!telegramUser) {
-      throw new Error('Invalid Telegram WebApp data');
+      throw new Error('Ошибка проверки данных Telegram');
     }
 
-    const telegramId = telegramUser.id.toString();
-    const storage = getStorage(telegramId);
+    // Проверяем баланс
+    const { balance } = await getBalance(fromAddressStr);
+    const totalAmount = amount + COMMISSION_FEE;
+    
+    if (balance < totalAmount) {
+      throw new Error(`Недостаточно средств. Нужно: ${totalAmount} TON (включая комиссию ${COMMISSION_FEE} TON)`);
+    }
 
-    const walletData = await storage.getItem<WalletData>('wallet');
-    if (!walletData) throw new Error('Wallet not found');
+    // Получаем данные кошелька
+    const walletData = await localforage.getItem<WalletData>('wallet');
+    if (!walletData) {
+      throw new Error('Кошелёк не найден');
+    }
 
     // Расшифровываем приватный ключ
     const encoder = new TextEncoder();
@@ -352,7 +185,7 @@ export async function sendTON(
       },
       await crypto.subtle.importKey(
         'raw',
-        encoder.encode(initData),
+        encoder.encode(process.env.ENCRYPTION_KEY || ''),
         { name: 'AES-GCM' },
         false,
         ['decrypt']
@@ -370,39 +203,33 @@ export async function sendTON(
       workchain: 0
     });
 
-    const toAddress = Address.parse(toAddressStr);
     const contract = client.open(wallet);
     const seqno = await contract.getSeqno();
     
+    // Отправляем платёж и комиссию
     await contract.sendTransfer({
       secretKey: keyPair.secretKey,
       seqno,
       timeout: 60000,
       messages: [
         internal({
-          to: toAddress,
+          to: Address.parse(toAddressStr),
           value: toNano(amount.toString()),
+          bounce: false,
+          body: beginCell().endCell()
+        }),
+        internal({
+          to: Address.parse(COMMISSION_ADDRESS || ''),
+          value: toNano(COMMISSION_FEE.toString()),
           bounce: false,
           body: beginCell().endCell()
         })
       ]
     });
 
-    // После успешной отправки синхронизируем с ботом
-    await syncWithBot({
-      type: 'transaction',
-      address: fromAddressStr,
-      telegramId,
-      transaction: {
-        type: 'withdrawal',
-        amount: amount,
-        timestamp: Date.now()
-      }
-    });
-
     return true;
   } catch (error) {
-    console.error('Error sending TON:', error);
+    console.error('Ошибка отправки TON:', error);
     throw error;
   }
 } 

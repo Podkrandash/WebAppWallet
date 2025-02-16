@@ -22,7 +22,6 @@
   },
   "ignoreCommand": "git diff --quiet HEAD^ HEAD ./",
   "env": {
-    "NEXT_PUBLIC_API_URL": "http://localhost:3000",
     "NEXT_PUBLIC_TELEGRAM_BOT_TOKEN": "7748878238:AAH_DEJFc1esypaU3KLafVboDzpcRpCgwWo"
   }
 } 

@@ -42,6 +42,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState<'wallet' | 'history'>('wallet');
   const [error, setError] = useState<string | null>(null);
+  const [initData, setInitData] = useState<string>('');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -54,14 +55,16 @@ export default function Home() {
       window.Telegram.WebApp.expand();
       window.Telegram.WebApp.ready();
 
-      const initData = window.Telegram.WebApp.initData;
-      if (!initData) {
+      const webAppInitData = window.Telegram.WebApp.initData;
+      if (!webAppInitData) {
         setError('Отсутствуют данные инициализации');
         setLoading(false);
         return;
       }
 
-      initWallet(initData)
+      setInitData(webAppInitData);
+
+      initWallet(webAppInitData)
         .then(async (walletData) => {
           if (!walletData) {
             throw new Error('Не удалось получить данные кошелька');
@@ -132,9 +135,7 @@ export default function Home() {
               balance={wallet.balance}
               usdValue={wallet.usdValue}
               address={wallet.address}
-              onSend={handleSend}
-              onReceive={handleReceive}
-              onQRCode={handleQRCode}
+              initData={initData}
             />
           )}
 
