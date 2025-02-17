@@ -2,6 +2,7 @@ import { Box, Text, Button, Group, CopyButton, Stack, ActionIcon, SimpleGrid, Pa
 import { IconSend, IconDownload, IconQrcode, IconCopy, IconArrowsExchange, IconCoin, IconLock } from '@tabler/icons-react';
 import { useState } from 'react';
 import { sendTON } from '../lib/ton';
+import TonDetails from './TonDetails';
 
 interface Token {
   symbol: string;
@@ -27,10 +28,23 @@ export default function WalletCard({
   initData
 }: WalletCardProps) {
   const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [showTonDetails, setShowTonDetails] = useState(false);
   const [recipientAddress, setRecipientAddress] = useState('');
   const [amount, setAmount] = useState<number | ''>(0);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  if (showTonDetails) {
+    return (
+      <TonDetails
+        balance={balance}
+        usdValue={usdValue}
+        address={address}
+        priceChange={-39.37}
+        onBack={() => setShowTonDetails(false)}
+      />
+    );
+  }
 
   const handleSend = async () => {
     if (!amount || !recipientAddress) {
@@ -62,20 +76,20 @@ export default function WalletCard({
 
   return (
     <Box style={{ height: '100%', overflowY: 'auto' }}>
-      <Stack gap="md" pb={80} px="md">
+      <Stack gap="xl" pb={100} px="md">
         {/* Основной баланс */}
-        <Stack gap="xs" align="center">
+        <Stack gap="md" align="center" pt={32}>
           <Text 
             fw={700} 
             style={{ 
-              fontSize: 'clamp(24px, 8vw, 32px)',
-              lineHeight: 1.2
+              fontSize: 'clamp(32px, 10vw, 48px)',
+              lineHeight: 1.1
             }}
           >
             {usdValue} ₽
           </Text>
           <Text size="sm" c="dimmed">
-            Ваш адрес: {address.slice(0, 4)}...{address.slice(-4)}
+            {address.slice(0, 4)}...{address.slice(-4)}
           </Text>
         </Stack>
 
@@ -83,6 +97,7 @@ export default function WalletCard({
         <SimpleGrid 
           cols={{ base: 3, sm: 6 }}
           spacing="md"
+          pt={16}
         >
           <Stack gap={4} align="center">
             <ActionIcon 
@@ -192,8 +207,10 @@ export default function WalletCard({
           radius="md"
           style={{
             background: 'rgba(255, 255, 255, 0.5)',
-            backdropFilter: 'blur(10px)'
+            backdropFilter: 'blur(10px)',
+            cursor: 'pointer'
           }}
+          onClick={() => setShowTonDetails(true)}
         >
           <Group justify="space-between" align="flex-start">
             <Group>
@@ -201,25 +218,25 @@ export default function WalletCard({
                 src="https://ton.org/download/ton_symbol.png" 
                 alt="TON"
                 style={{ 
-                  width: 'clamp(24px, 6vw, 32px)', 
-                  height: 'clamp(24px, 6vw, 32px)',
+                  width: 32,
+                  height: 32,
                   borderRadius: '50%'
                 }}
               />
               <div>
                 <Group gap={4}>
-                  <Text style={{ fontSize: 'clamp(14px, 4vw, 16px)' }} fw={500}>TON</Text>
+                  <Text fw={500}>TON</Text>
                 </Group>
                 <Group gap={4}>
-                  <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }} c="dimmed">{(balance * 3.5).toFixed(2)} ₽</Text>
-                  <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }} c="green">+0.48%</Text>
+                  <Text c="dimmed">{usdValue} ₽</Text>
+                  <Text c="green">+0.48%</Text>
                 </Group>
               </div>
             </Group>
             <div style={{ textAlign: 'right' }}>
-              <Text style={{ fontSize: 'clamp(14px, 4vw, 16px)' }} fw={500}>{balance.toFixed(4)}</Text>
-              <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }} c="dimmed">
-                {(balance * 3.5).toFixed(2)} ₽
+              <Text fw={500}>{balance.toFixed(2)}</Text>
+              <Text c="dimmed">
+                {usdValue} ₽
               </Text>
             </div>
           </Group>

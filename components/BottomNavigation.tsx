@@ -1,6 +1,5 @@
 import { Paper, UnstyledButton, Stack, Text, Box } from '@mantine/core';
 import { IconWallet, IconClockHour4 } from '@tabler/icons-react';
-import { useState, useEffect } from 'react';
 
 interface BottomNavigationProps {
   active: 'wallet' | 'history';
@@ -8,45 +7,27 @@ interface BottomNavigationProps {
 }
 
 export default function BottomNavigation({ active, onNavigate }: BottomNavigationProps) {
-  const [sizes, setSizes] = useState({
-    icon: 20,
-    text: 11
-  });
-
-  useEffect(() => {
-    const updateSizes = () => {
-      setSizes({
-        icon: Math.min(Math.max(20, window.innerWidth * 6 / 100), 24),
-        text: Math.min(Math.max(11, window.innerWidth * 3 / 100), 12)
-      });
-    };
-
-    updateSizes();
-    window.addEventListener('resize', updateSizes);
-    return () => window.removeEventListener('resize', updateSizes);
-  }, []);
-
   return (
     <Paper 
-      shadow="sm"
-      p="md" 
       style={{ 
-        position: 'sticky', 
+        position: 'fixed', 
         bottom: 0,
-        width: '100%',
+        left: 0,
+        right: 0,
         background: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
-        borderRadius: '20px 20px 0 0',
+        borderRadius: '24px 24px 0 0',
         border: '1px solid rgba(0, 0, 0, 0.1)',
         zIndex: 1000,
-        padding: 'clamp(8px, 3vw, 16px)'
+        padding: '16px 24px',
+        boxShadow: '0 -8px 16px rgba(0, 0, 0, 0.03)'
       }}
     >
       <Box 
         style={{ 
           display: 'grid', 
           gridTemplateColumns: '1fr 1fr',
-          gap: 'clamp(4px, 2vw, 8px)',
+          gap: '12px',
           maxWidth: '400px',
           margin: '0 auto'
         }}
@@ -54,24 +35,23 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
         <UnstyledButton 
           onClick={() => onNavigate('wallet')}
           style={{ 
-            padding: 'clamp(6px, 2vw, 8px)',
+            padding: '12px',
             borderRadius: '16px',
-            background: active === 'wallet' ? 'rgba(10, 132, 255, 0.1)' : 'transparent'
+            background: active === 'wallet' ? 'rgba(10, 132, 255, 0.1)' : 'transparent',
+            transition: 'all 0.2s ease'
           }}
         >
-          <Stack align="center" gap={4}>
+          <Stack align="center" gap={8}>
             <IconWallet 
-              size={sizes.icon}
+              size={24}
               color={active === 'wallet' ? '#0A84FF' : '#8E8E93'} 
               style={{ transition: 'color 0.2s ease' }}
             />
             <Text 
-              style={{ 
-                fontSize: `${sizes.text}px`,
-                transition: 'color 0.2s ease'
-              }}
+              size="sm"
               fw={500}
               c={active === 'wallet' ? 'blue' : 'dimmed'}
+              style={{ transition: 'color 0.2s ease' }}
             >
               Кошелёк
             </Text>
@@ -81,24 +61,23 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
         <UnstyledButton 
           onClick={() => onNavigate('history')}
           style={{ 
-            padding: 'clamp(6px, 2vw, 8px)',
+            padding: '12px',
             borderRadius: '16px',
-            background: active === 'history' ? 'rgba(10, 132, 255, 0.1)' : 'transparent'
+            background: active === 'history' ? 'rgba(10, 132, 255, 0.1)' : 'transparent',
+            transition: 'all 0.2s ease'
           }}
         >
-          <Stack align="center" gap={4}>
+          <Stack align="center" gap={8}>
             <IconClockHour4 
-              size={sizes.icon}
+              size={24}
               color={active === 'history' ? '#0A84FF' : '#8E8E93'} 
               style={{ transition: 'color 0.2s ease' }}
             />
             <Text 
-              style={{ 
-                fontSize: `${sizes.text}px`,
-                transition: 'color 0.2s ease'
-              }}
+              size="sm"
               fw={500}
               c={active === 'history' ? 'blue' : 'dimmed'}
+              style={{ transition: 'color 0.2s ease' }}
             >
               История
             </Text>
