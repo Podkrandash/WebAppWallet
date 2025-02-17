@@ -14,16 +14,17 @@ export default function TransactionHistory({ transactions }: TransactionHistoryP
         p="xl" 
         style={{ 
           background: 'rgba(255, 255, 255, 0.95)',
-          textAlign: 'center'
+          textAlign: 'center',
+          marginTop: 48
         }}
       >
-        <Text c="dimmed">История транзакций пуста</Text>
+        <Text c="dimmed" fw={500}>История транзакций пуста</Text>
       </Paper>
     );
   }
 
   return (
-    <Stack gap="md">
+    <Stack gap="md" pt={16}>
       {transactions.map((tx, index) => (
         <Paper
           key={index}

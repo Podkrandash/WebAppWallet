@@ -75,14 +75,14 @@ export default function WalletCard({
   };
 
   return (
-    <Box style={{ height: '100%', overflowY: 'auto' }}>
-      <Stack gap="xl" pb={100} px="md">
+    <Box style={{ height: '100%', position: 'relative' }}>
+      <Stack gap="xl" pb={80} px="md">
         {/* Основной баланс */}
-        <Stack gap="md" align="center" pt={32}>
+        <Stack gap="md" align="center" pt={24}>
           <Text 
             fw={700} 
             style={{ 
-              fontSize: 'clamp(32px, 10vw, 48px)',
+              fontSize: 'clamp(28px, 8vw, 40px)',
               lineHeight: 1.1
             }}
           >
@@ -97,7 +97,7 @@ export default function WalletCard({
         <SimpleGrid 
           cols={{ base: 3, sm: 6 }}
           spacing="md"
-          pt={16}
+          pt={8}
         >
           <Stack gap={4} align="center">
             <ActionIcon 

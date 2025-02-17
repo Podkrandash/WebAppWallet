@@ -159,13 +159,14 @@ export default function Home() {
       />
       <Box 
         style={{ 
-          height: '100vh',
+          height: '100vh', 
           display: 'flex',
           flexDirection: 'column',
-          background: '#F2F2F7'
+          background: '#F2F2F7',
+          position: 'relative'
         }}
       >
-        <Box style={{ flex: 1, overflow: 'hidden' }}>
+        <Box style={{ flex: 1, position: 'relative' }}>
           <LoadingOverlay visible={loading} />
           
           {activePage === 'wallet' && wallet && (
@@ -178,7 +179,7 @@ export default function Home() {
           )}
 
           {activePage === 'history' && (
-            <Box px="md" style={{ height: '100%', overflowY: 'auto' }}>
+            <Box px="md" pb={80}>
               <TransactionHistory transactions={transactions} />
             </Box>
           )}
