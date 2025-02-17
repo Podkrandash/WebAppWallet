@@ -159,36 +159,39 @@ export default function Home() {
       />
       <Box 
         style={{ 
-          height: '100vh', 
-          display: 'flex',
-          flexDirection: 'column',
+          height: '100vh',
           background: '#F2F2F7',
-          position: 'relative'
+          overflowY: 'auto'
         }}
       >
-        <Box style={{ flex: 1, position: 'relative' }}>
-          <LoadingOverlay visible={loading} />
-          
-          {activePage === 'wallet' && wallet && (
+        <LoadingOverlay visible={loading} />
+        
+        {activePage === 'wallet' && wallet && (
+          <>
             <WalletCard
               balance={wallet.balance}
               usdValue={wallet.usdValue}
               address={wallet.address}
               initData={initData}
             />
-          )}
+            <BottomNavigation
+              active={activePage}
+              onNavigate={handlePageChange}
+            />
+          </>
+        )}
 
-          {activePage === 'history' && (
-            <Box px="md" pb={80}>
+        {activePage === 'history' && (
+          <>
+            <Box px="md">
               <TransactionHistory transactions={transactions} />
             </Box>
-          )}
-        </Box>
-
-        <BottomNavigation
-          active={activePage}
-          onNavigate={handlePageChange}
-        />
+            <BottomNavigation
+              active={activePage}
+              onNavigate={handlePageChange}
+            />
+          </>
+        )}
       </Box>
     </>
   );

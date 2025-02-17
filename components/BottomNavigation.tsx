@@ -10,26 +10,21 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
   return (
     <Paper 
       style={{ 
-        position: 'fixed', 
-        bottom: 0,
-        left: 0,
-        right: 0,
         background: 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
-        borderRadius: '24px 24px 0 0',
+        borderRadius: '24px',
         border: '1px solid rgba(0, 0, 0, 0.1)',
-        zIndex: 1000,
-        padding: '16px 24px',
-        boxShadow: '0 -8px 16px rgba(0, 0, 0, 0.03)'
+        padding: '12px',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
+        maxWidth: '400px',
+        margin: '16px auto',
       }}
     >
       <Box 
         style={{ 
           display: 'grid', 
           gridTemplateColumns: '1fr 1fr',
-          gap: '12px',
-          maxWidth: '400px',
-          margin: '0 auto'
+          gap: '8px',
         }}
       >
         <UnstyledButton 
@@ -41,7 +36,7 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
             transition: 'all 0.2s ease'
           }}
         >
-          <Stack align="center" gap={8}>
+          <Stack align="center" gap={4}>
             <IconWallet 
               size={24}
               color={active === 'wallet' ? '#0A84FF' : '#8E8E93'} 
@@ -67,7 +62,7 @@ export default function BottomNavigation({ active, onNavigate }: BottomNavigatio
             transition: 'all 0.2s ease'
           }}
         >
-          <Stack align="center" gap={8}>
+          <Stack align="center" gap={4}>
             <IconClockHour4 
               size={24}
               color={active === 'history' ? '#0A84FF' : '#8E8E93'} 
