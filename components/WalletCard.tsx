@@ -2,7 +2,7 @@ import { Box, Text, Button, Group, CopyButton, Stack, ActionIcon, SimpleGrid, Pa
 import { IconSend, IconDownload, IconQrcode, IconCopy, IconArrowsExchange, IconCoin, IconLock } from '@tabler/icons-react';
 import { useState } from 'react';
 import { sendTON } from '../lib/ton';
-import TonDetails from './TonDetails';
+import { TonDetails } from './TonDetails';
 import SendCrypto from './SendCrypto';
 import UsdtDetails from './UsdtDetails';
 
@@ -44,7 +44,7 @@ export default function WalletCard({
     return (
       <TonDetails
         balance={balance}
-        usdValue={usdValue}
+        usdValue={Number(usdValue.replace(/[^\d.-]/g, ''))}
         address={address}
         tonPrice={tonPrice}
         priceChange={0}
