@@ -66,6 +66,9 @@ export default function WalletCard({
               lineHeight: 1.1
             }}
           >
+            {balance.toFixed(2)} TON
+          </Text>
+          <Text size="lg" c="dimmed">
             {usdValue} ₽
           </Text>
           <Text size="sm" c="dimmed">

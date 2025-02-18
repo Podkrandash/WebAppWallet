@@ -35,23 +35,34 @@ export default function RootLayout({
       WebApp.enableClosingConfirmation();
       
       // Предотвращаем закрытие при свайпе
-      const handleSwipe = (e: TouchEvent) => {
-        if (e.touches.length > 1) {
-          e.preventDefault();
-        }
+      const preventClose = (e: Event) => {
+        e.preventDefault();
+        return false;
       };
       
-      document.addEventListener('touchstart', handleSwipe, { passive: false });
+      // Добавляем обработчики для всех событий свайпа
+      document.addEventListener('touchstart', preventClose, { passive: false });
+      document.addEventListener('touchmove', preventClose, { passive: false });
+      document.addEventListener('touchend', preventClose, { passive: false });
+      document.body.style.overscrollBehavior = 'none';
+      document.documentElement.style.overscrollBehavior = 'none';
       
       return () => {
-        document.removeEventListener('touchstart', handleSwipe);
+        document.removeEventListener('touchstart', preventClose);
+        document.removeEventListener('touchmove', preventClose);
+        document.removeEventListener('touchend', preventClose);
       };
     }
   }, []);
 
   return (
-    <html lang="ru">
-      <body>{children}</body>
+    <html lang="ru" style={{ overscrollBehavior: 'none' }}>
+      <body style={{ 
+        overscrollBehavior: 'none',
+        overflow: 'hidden'
+      }}>
+        {children}
+      </body>
     </html>
   );
 } 

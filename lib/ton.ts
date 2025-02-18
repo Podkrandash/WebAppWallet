@@ -66,30 +66,38 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
     const address = Address.parse(addressStr);
     const balance = await client.getBalance(address);
     const balanceInTon = Number(fromNano(balance));
-    console.log('Текущий баланс:', balanceInTon, 'TON');
     
-    // Обновляем цену TON каждые 5 минут
-    const now = Date.now();
-    if (now - lastPriceUpdate >= 5 * 60 * 1000) {
-      try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=rub');
-        if (response.ok) {
-          const data = await response.json();
-          cachedPrice = data['the-open-network'].rub;
-          lastPriceUpdate = now;
-          console.log('Обновлена цена TON:', cachedPrice, 'RUB');
+    // Получаем актуальный курс TON в рублях
+    try {
+      const response = await fetch(
+        'https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=rub',
+        {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
         }
-      } catch (error) {
-        console.error('Ошибка обновления цены:', error);
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        const tonPrice = data['the-open-network'].rub;
+        console.log('Текущая цена TON:', tonPrice, 'RUB');
+        
+        return {
+          balance: balanceInTon,
+          usdValue: (tonPrice).toFixed(2)
+        };
       }
+    } catch (error) {
+      console.error('Ошибка получения курса:', error);
     }
     
-    const result = {
+    // Если не удалось получить курс, возвращаем запасной вариант
+    return {
       balance: balanceInTon,
-      usdValue: (balanceInTon * cachedPrice).toFixed(2)
+      usdValue: '0.00'
     };
-    console.log('Возвращаем данные баланса:', result);
-    return result;
   } catch (error) {
     console.error('Ошибка получения баланса:', error);
     throw error;

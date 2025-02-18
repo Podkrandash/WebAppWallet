@@ -38,12 +38,13 @@ export default function TonDetails({
   balance,
   usdValue,
   address,
-  priceChange,
+  priceChange: initialPriceChange,
   onBack
 }: TonDetailsProps) {
   const [priceData, setPriceData] = useState<PriceData[]>([]);
   const [selectedInterval, setSelectedInterval] = useState<string>('1D');
   const [currentPrice, setCurrentPrice] = useState<number>(0);
+  const [priceChange, setPriceChange] = useState<number>(initialPriceChange);
   const [isLoading, setIsLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
@@ -69,35 +70,30 @@ export default function TonDetails({
         setIsLoading(true);
         const days = intervalToDays[selectedInterval];
         
-        // Для часового интервала используем минуты
+        // Формируем URL в зависимости от интервала
         const url = selectedInterval === '1H'
-          ? `https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=1&interval=minute`
+          ? 'https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=1&interval=minute'
           : `https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=${days}`;
         
-        const response = await fetch(url, {
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          }
-        });
-
+        const response = await fetch(url);
         if (!response.ok) {
           throw new Error('Ошибка получения данных о цене');
         }
         
         const data = await response.json();
-        
         if (!data.prices || !Array.isArray(data.prices)) {
           throw new Error('Некорректный формат данных');
         }
-        
-        // Определяем интервал между точками в зависимости от выбранного периода
+
+        // Определяем интервал между точками
         let interval = 1;
-        if (selectedInterval === '1H') interval = 5; // каждые 5 минут
-        else if (selectedInterval === '1D') interval = 15; // каждые 15 минут
-        else if (selectedInterval === '1W') interval = 2; // каждые 2 часа
-        else if (selectedInterval === '1M') interval = 12; // каждые 12 часов
-        else if (selectedInterval === 'ALL') interval = 24; // каждые 24 часа
+        switch (selectedInterval) {
+          case '1H': interval = 5; break;  // каждые 5 минут
+          case '1D': interval = 15; break; // каждые 15 минут
+          case '1W': interval = 2; break;  // каждые 2 часа
+          case '1M': interval = 12; break; // каждые 12 часов
+          case 'ALL': interval = 24; break; // каждые 24 часа
+        }
 
         // Фильтруем и форматируем данные
         const formattedData = data.prices
@@ -110,7 +106,13 @@ export default function TonDetails({
         setPriceData(formattedData);
         
         if (formattedData.length > 0) {
-          setCurrentPrice(formattedData[formattedData.length - 1].price);
+          const lastPrice = formattedData[formattedData.length - 1].price;
+          setCurrentPrice(lastPrice);
+          
+          // Вычисляем изменение цены в процентах
+          const firstPrice = formattedData[0].price;
+          const priceChangePercent = ((lastPrice - firstPrice) / firstPrice) * 100;
+          setPriceChange(priceChangePercent);
         }
       } catch (error) {
         console.error('Ошибка получения данных о цене:', error);
