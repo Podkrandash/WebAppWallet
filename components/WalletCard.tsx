@@ -208,13 +208,13 @@ export default function WalletCard({
                   <Text fw={500}>TON</Text>
                 </Group>
                 <Group gap={4}>
-                  <Text c="dimmed">{usdValue} ₽</Text>
+                  <Text c="dimmed">{balance.toFixed(2)} TON</Text>
                   <Text c="green">+0.48%</Text>
                 </Group>
               </div>
             </Group>
             <div style={{ textAlign: 'right' }}>
-              <Text fw={500}>{balance.toFixed(2)}</Text>
+              <Text fw={500}>{balance.toFixed(2)} TON</Text>
               <Text c="dimmed">
                 {usdValue} ₽
               </Text>

@@ -27,6 +27,21 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { type, amount, address, hash, fee } = body;
 
+    // Проверяем обязательные поля
+    if (!type || !amount || !address || !hash || fee === undefined) {
+      console.error('Missing required fields:', { type, amount, address, hash, fee });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Проверяем корректность значений
+    if (typeof amount !== 'number' || amount <= 0) {
+      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
+    }
+
+    if (typeof fee !== 'number' || fee < 0) {
+      return NextResponse.json({ error: 'Invalid fee' }, { status: 400 });
+    }
+
     console.log('Данные транзакции:', { type, amount, address, hash, fee });
 
     // Проверяем тип операции

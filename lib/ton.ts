@@ -72,12 +72,12 @@ export async function getBalance(addressStr: string): Promise<{ balance: number;
     const now = Date.now();
     if (now - lastPriceUpdate >= 5 * 60 * 1000) {
       try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=rub');
         if (response.ok) {
           const data = await response.json();
-          cachedPrice = data['the-open-network'].usd;
+          cachedPrice = data['the-open-network'].rub;
           lastPriceUpdate = now;
-          console.log('Обновлена цена TON:', cachedPrice, 'USD');
+          console.log('Обновлена цена TON:', cachedPrice, 'RUB');
         }
       } catch (error) {
         console.error('Ошибка обновления цены:', error);

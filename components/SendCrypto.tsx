@@ -1,4 +1,4 @@
-import { Box, Text, Paper, Stack, TextInput, NumberInput, Button, Group, ActionIcon } from '@mantine/core';
+import { Box, Text, Paper, Stack, TextInput, NumberInput, Button, Group, ActionIcon, Title } from '@mantine/core';
 import { IconQrcode, IconScan, IconArrowLeft } from '@tabler/icons-react';
 import { useState } from 'react';
 import { sendTON } from '../lib/ton';
@@ -51,116 +51,103 @@ export default function SendCrypto({
   };
 
   return (
-    <Box style={{ 
-      height: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column',
-      padding: '16px',
-      gap: '12px',
-      background: '#F2F2F7'
-    }}>
-      {/* Хедер */}
+    <Stack gap="lg" p="md">
       <Group justify="space-between" align="center">
-        <ActionIcon 
-          variant="subtle" 
-          color="gray" 
-          onClick={onBack}
-          size="lg"
-        >
-          <IconArrowLeft size={24} />
-        </ActionIcon>
-        <Text fw={700} size="lg">Отправить</Text>
-        <Box w={40} />
+        <Title order={2}>Отправить TON</Title>
       </Group>
-
-      {step === 'select' && (
+      
+      <Paper shadow="xs" p="md" radius="md">
         <Stack gap="md">
-          <Paper p="xl" radius="lg" style={{ background: 'white' }}>
-            <Stack align="center" gap="md">
-              <img 
-                src="https://ton.org/download/ton_symbol.png" 
-                alt="TON"
-                style={{ 
-                  width: 64,
-                  height: 64,
-                  borderRadius: '50%'
-                }}
-              />
-              <Text fw={700} size="xl">TON</Text>
-              <Text size="sm" c="dimmed">Баланс: {balance.toFixed(2)} TON</Text>
-              <Button 
-                fullWidth 
-                size="lg" 
-                radius="xl"
-                onClick={() => setStep('amount')}
-              >
-                Выбрать
-              </Button>
-            </Stack>
-          </Paper>
-
-          {/* Другие криптовалюты можно добавить здесь */}
-        </Stack>
-      )}
-
-      {step === 'amount' && (
-        <Stack gap="md">
-          <Paper p="xl" radius="lg" style={{ background: 'white' }}>
-            <Stack gap="lg">
-              <Group justify="space-between">
-                <Text fw={500}>Доступно</Text>
-                <Text fw={700}>{(balance - 0.05).toFixed(2)} TON</Text>
-              </Group>
-
-              <TextInput
-                label="Адрес получателя"
-                placeholder="UQ..."
-                value={recipientAddress}
-                onChange={(e) => setRecipientAddress(e.currentTarget.value)}
-                error={error && !recipientAddress ? 'Введите адрес' : null}
-                size="lg"
-                rightSection={
-                  <ActionIcon variant="subtle" onClick={() => {/* TODO: Добавить сканирование QR */}}>
-                    <IconScan size={20} />
-                  </ActionIcon>
+          <TextInput
+            label="Адрес получателя"
+            placeholder="UQ..."
+            value={address}
+            onChange={(e) => setRecipientAddress(e.target.value)}
+            error={error && !address ? 'Введите адрес' : null}
+            size="lg"
+            styles={{
+              input: {
+                fontSize: '16px',
+                height: '50px',
+                background: 'rgba(0, 0, 0, 0.03)',
+                border: 'none',
+                '&:focus': {
+                  border: '2px solid #0A84FF'
                 }
-              />
-              
-              <NumberInput
-                label="Сумма TON"
-                placeholder="0.1"
-                value={amount}
-                onChange={(value) => setAmount(typeof value === 'string' ? '' : value)}
-                min={0.01}
-                max={balance - 0.05}
-                decimalScale={2}
-                error={error && !amount ? 'Введите сумму' : null}
-                size="lg"
-              />
+              },
+              label: {
+                fontSize: '16px',
+                marginBottom: '8px'
+              }
+            }}
+          />
+          
+          <NumberInput
+            label="Сумма TON"
+            placeholder="0.1"
+            value={amount}
+            onChange={(value) => setAmount(typeof value === 'string' ? '' : value)}
+            min={0.01}
+            max={balance - 0.05}
+            decimalScale={2}
+            error={error && !amount ? 'Введите сумму' : null}
+            size="lg"
+            styles={{
+              input: {
+                fontSize: '24px',
+                height: '60px',
+                textAlign: 'center',
+                background: 'rgba(0, 0, 0, 0.03)',
+                border: 'none',
+                '&:focus': {
+                  border: '2px solid #0A84FF'
+                }
+              },
+              label: {
+                fontSize: '16px',
+                marginBottom: '8px'
+              }
+            }}
+            rightSection={
+              <Text c="dimmed" pr="md">TON</Text>
+            }
+            stepHoldDelay={500}
+            stepHoldInterval={100}
+            allowDecimal
+            allowNegative={false}
+            clampBehavior="strict"
+            fixedDecimalScale
+          />
 
-              {error && (
-                <Text c="red" size="sm">
-                  {error}
-                </Text>
-              )}
+          {error && (
+            <Text c="red" size="sm">
+              {error}
+            </Text>
+          )}
 
-              <Text size="sm" c="dimmed">
-                Комиссия сети: 0.05 TON
-              </Text>
+          <Text size="sm" c="dimmed">
+            Комиссия сети: 0.05 TON
+          </Text>
 
-              <Button
-                onClick={handleSend}
-                loading={sending}
-                disabled={!amount || !recipientAddress || sending}
-                size="lg"
-                radius="xl"
-              >
-                Отправить
-              </Button>
-            </Stack>
-          </Paper>
+          <Button
+            size="lg"
+            onClick={handleSend}
+            loading={sending}
+            fullWidth
+            styles={{
+              root: {
+                height: '50px',
+                background: '#0A84FF',
+                '&:hover': {
+                  background: '#007AFF'
+                }
+              }
+            }}
+          >
+            Отправить
+          </Button>
         </Stack>
-      )}
-    </Box>
+      </Paper>
+    </Stack>
   );
 } 

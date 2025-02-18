@@ -74,12 +74,22 @@ export default function TonDetails({
           ? `https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=1&interval=minute`
           : `https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=${days}`;
         
-        const response = await fetch(url);
+        const response = await fetch(url, {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          }
+        });
+
         if (!response.ok) {
           throw new Error('Ошибка получения данных о цене');
         }
         
         const data = await response.json();
+        
+        if (!data.prices || !Array.isArray(data.prices)) {
+          throw new Error('Некорректный формат данных');
+        }
         
         // Определяем интервал между точками в зависимости от выбранного периода
         let interval = 1;
