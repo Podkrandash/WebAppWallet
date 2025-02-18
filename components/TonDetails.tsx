@@ -147,56 +147,6 @@ export function TonDetails({ balance, usdValue, address, tonPrice, priceChange: 
       gap: '12px',
       background: '#F2F2F7'
     }}>
-      {/* Переключатель криптовалют */}
-      <SegmentedControl
-        value={selectedInterval}
-        onChange={(value) => setSelectedInterval(value)}
-        data={[
-          {
-            label: (
-              <Group>
-                <Text>1H</Text>
-              </Group>
-            ),
-            value: '1H'
-          },
-          {
-            label: (
-              <Group>
-                <Text>1D</Text>
-              </Group>
-            ),
-            value: '1D'
-          },
-          {
-            label: (
-              <Group>
-                <Text>1W</Text>
-              </Group>
-            ),
-            value: '1W'
-          },
-          {
-            label: (
-              <Group>
-                <Text>1M</Text>
-              </Group>
-            ),
-            value: '1M'
-          },
-          {
-            label: (
-              <Group>
-                <Text>ALL</Text>
-              </Group>
-            ),
-            value: 'ALL'
-          }
-        ]}
-        fullWidth
-        size="lg"
-      />
-
       {/* Основная информация */}
       <Paper p="md" radius="lg" style={{ background: 'white' }}>
         <Group justify="space-between" align="flex-start">

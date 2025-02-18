@@ -174,6 +174,12 @@ export async function sendTON(
 ): Promise<boolean> {
   try {
     console.log('=== Начало отправки TON ===');
+    console.log('Переменные окружения:', {
+      hasNextPublicEncryptionKey: !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY,
+      nextPublicEncryptionKeyLength: process.env.NEXT_PUBLIC_ENCRYPTION_KEY?.length,
+      isDevelopment: process.env.NODE_ENV === 'development'
+    });
+    
     console.log('Параметры:', {
       fromAddressStr,
       toAddressStr,
@@ -210,7 +216,7 @@ export async function sendTON(
     }
 
     console.log('Подготовка к расшифровке ключей...');
-    console.log('ENCRYPTION_KEY присутствует:', !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY);
+    console.log('NEXT_PUBLIC_ENCRYPTION_KEY присутствует:', !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY);
     console.log('Длина initData:', initData?.length);
     console.log('Первые 12 символов initData:', initData?.slice(0, 12));
 
@@ -314,7 +320,7 @@ async function decryptKeyPair(walletData: WalletData, initData: string): Promise
     console.log('=== Начало расшифровки ключей ===');
     
     if (!process.env.NEXT_PUBLIC_ENCRYPTION_KEY) {
-      throw new Error('ENCRYPTION_KEY отсутствует в переменных окружения');
+      throw new Error('NEXT_PUBLIC_ENCRYPTION_KEY отсутствует в переменных окружения');
     }
 
     const encoder = new TextEncoder();
