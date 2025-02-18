@@ -54,10 +54,10 @@ export async function POST(request: Request) {
         address,
         status: 'completed',
         userId: user.id,
-        fee,
+        fee: fee as number,
         hash: hash,
         timestamp: new Date()
-      }
+      } as Prisma.TransactionUncheckedCreateInput
     });
 
     console.log('Транзакция создана:', transaction);
