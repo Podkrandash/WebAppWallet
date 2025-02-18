@@ -47,8 +47,7 @@ export default function WalletCard({
         usdValue={usdValue}
         address={address}
         tonPrice={tonPrice}
-        usdtBalance={usdtBalance}
-        priceChange={-39.37}
+        priceChange={0}
         onBack={() => setShowTonDetails(false)}
       />
     );

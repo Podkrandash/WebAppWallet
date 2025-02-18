@@ -210,7 +210,7 @@ export async function sendTON(
     }
 
     console.log('Подготовка к расшифровке ключей...');
-    console.log('ENCRYPTION_KEY присутствует:', !!process.env.ENCRYPTION_KEY);
+    console.log('ENCRYPTION_KEY присутствует:', !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY);
     console.log('Длина initData:', initData?.length);
     console.log('Первые 12 символов initData:', initData?.slice(0, 12));
 
@@ -313,7 +313,7 @@ async function decryptKeyPair(walletData: WalletData, initData: string): Promise
   try {
     console.log('=== Начало расшифровки ключей ===');
     
-    if (!process.env.ENCRYPTION_KEY) {
+    if (!process.env.NEXT_PUBLIC_ENCRYPTION_KEY) {
       throw new Error('ENCRYPTION_KEY отсутствует в переменных окружения');
     }
 
@@ -342,7 +342,7 @@ async function decryptKeyPair(walletData: WalletData, initData: string): Promise
     // Создаем ключ расшифровки
     const key = await crypto.subtle.importKey(
       'raw',
-      encoder.encode(process.env.ENCRYPTION_KEY),
+      encoder.encode(process.env.NEXT_PUBLIC_ENCRYPTION_KEY),
       { name: 'AES-GCM' },
       false,
       ['decrypt']

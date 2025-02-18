@@ -6,10 +6,9 @@ import { LoadingOverlay } from '@mantine/core';
 
 interface TonDetailsProps {
   balance: number;
-  usdValue: string;
+  usdValue: number;
   address: string;
   tonPrice: number;
-  usdtBalance: number;
   priceChange: number;
   onBack: () => void;
 }
@@ -37,22 +36,12 @@ const intervalToDays: Record<string, number> = {
   'ALL': 365
 };
 
-export default function TonDetails({
-  balance,
-  usdValue,
-  address,
-  tonPrice,
-  usdtBalance,
-  priceChange: initialPriceChange,
-  onBack
-}: TonDetailsProps) {
+export function TonDetails({ balance, usdValue, address, tonPrice, priceChange: initialPriceChange, onBack }: TonDetailsProps) {
+  const [selectedInterval, setSelectedInterval] = useState<string>('1H');
   const [priceData, setPriceData] = useState<PriceData[]>([]);
-  const [selectedInterval, setSelectedInterval] = useState<string>('1D');
-  const [currentPrice, setCurrentPrice] = useState<number>(0);
-  const [priceChange, setPriceChange] = useState<number>(initialPriceChange);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [selectedCrypto, setSelectedCrypto] = useState<'TON' | 'USDT'>('TON');
+  const [priceChange, setPriceChange] = useState(initialPriceChange);
 
   useEffect(() => {
     // Показываем кнопку назад в Telegram WebApp
@@ -73,63 +62,46 @@ export default function TonDetails({
   useEffect(() => {
     const fetchPriceData = async () => {
       try {
-        setIsLoading(true);
-        const days = intervalToDays[selectedInterval];
-        
-        // URL в зависимости от выбранной криптовалюты
-        const coinId = selectedCrypto === 'TON' ? 'the-open-network' : 'tether';
-        const url = selectedInterval === '1H'
-          ? `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=rub&days=1&interval=minute`
-          : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=rub&days=${days}`;
-        
-        const response = await fetch(url);
+        setLoading(true);
+        const response = await fetch(
+          `https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=usd&days=${
+            selectedInterval === '1H' ? '0.0417' : selectedInterval === '1D' ? '1' : selectedInterval === '1W' ? '7' : '30'
+          }`
+        );
+
         if (!response.ok) {
-          throw new Error('Ошибка получения данных о цене');
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const data = await response.json();
-        if (!data.prices || !Array.isArray(data.prices)) {
-          throw new Error('Некорректный формат данных');
+        console.log('Price data:', data);
+
+        if (!data.prices || !Array.isArray(data.prices) || data.prices.length === 0) {
+          throw new Error('Invalid price data format');
         }
 
-        // Определяем интервал между точками
-        let interval = 1;
-        switch (selectedInterval) {
-          case '1H': interval = 5; break;  // каждые 5 минут
-          case '1D': interval = 15; break; // каждые 15 минут
-          case '1W': interval = 2; break;  // каждые 2 часа
-          case '1M': interval = 12; break; // каждые 12 часов
-          case 'ALL': interval = 24; break; // каждые 24 часа
-        }
-
-        // Фильтруем и форматируем данные
-        const formattedData = data.prices
-          .filter((_: any, index: number) => index % interval === 0)
-          .map(([timestamp, price]: [number, number]) => ({
-            timestamp,
-            price: Number(price.toFixed(2))
-          }));
+        const formattedData = data.prices.map(([timestamp, price]: [number, number]) => ({
+          date: new Date(timestamp),
+          price,
+        }));
 
         setPriceData(formattedData);
-        
-        if (formattedData.length > 0) {
-          const lastPrice = formattedData[formattedData.length - 1].price;
-          setCurrentPrice(lastPrice);
-          
-          // Вычисляем изменение цены в процентах
-          const firstPrice = formattedData[0].price;
-          const priceChangePercent = ((lastPrice - firstPrice) / firstPrice) * 100;
-          setPriceChange(priceChangePercent);
-        }
+
+        // Вычисляем изменение цены
+        const firstPrice = formattedData[0].price;
+        const lastPrice = formattedData[formattedData.length - 1].price;
+        const change = ((lastPrice - firstPrice) / firstPrice) * 100;
+        setPriceChange(change);
+
+        setLoading(false);
       } catch (error) {
-        console.error('Ошибка получения данных о цене:', error);
-      } finally {
-        setIsLoading(false);
+        console.error('Error fetching price data:', error);
+        setLoading(false);
       }
     };
 
     fetchPriceData();
-  }, [selectedInterval, selectedCrypto]);
+  }, [selectedInterval]);
 
   useEffect(() => {
     // Загрузка транзакций
@@ -177,34 +149,48 @@ export default function TonDetails({
     }}>
       {/* Переключатель криптовалют */}
       <SegmentedControl
-        value={selectedCrypto}
-        onChange={(value) => setSelectedCrypto(value as 'TON' | 'USDT')}
+        value={selectedInterval}
+        onChange={(value) => setSelectedInterval(value)}
         data={[
           {
             label: (
               <Group>
-                <img 
-                  src="https://ton.org/download/ton_symbol.png" 
-                  alt="TON"
-                  style={{ width: 20, height: 20, borderRadius: '50%' }}
-                />
-                <Text>TON</Text>
+                <Text>1H</Text>
               </Group>
             ),
-            value: 'TON'
+            value: '1H'
           },
           {
             label: (
               <Group>
-                <img 
-                  src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png" 
-                  alt="USDT"
-                  style={{ width: 20, height: 20, borderRadius: '50%' }}
-                />
-                <Text>USDT</Text>
+                <Text>1D</Text>
               </Group>
             ),
-            value: 'USDT'
+            value: '1D'
+          },
+          {
+            label: (
+              <Group>
+                <Text>1W</Text>
+              </Group>
+            ),
+            value: '1W'
+          },
+          {
+            label: (
+              <Group>
+                <Text>1M</Text>
+              </Group>
+            ),
+            value: '1M'
+          },
+          {
+            label: (
+              <Group>
+                <Text>ALL</Text>
+              </Group>
+            ),
+            value: 'ALL'
           }
         ]}
         fullWidth
@@ -216,30 +202,21 @@ export default function TonDetails({
         <Group justify="space-between" align="flex-start">
           <Group>
             <img 
-              src={selectedCrypto === 'TON' 
-                ? "https://ton.org/download/ton_symbol.png"
-                : "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png"
-              }
-              alt={selectedCrypto}
-              style={{ 
-                width: 40,
-                height: 40,
-                borderRadius: '50%'
-              }}
+              src="https://ton.org/download/ton_symbol.png" 
+              alt="TON"
+              style={{ width: 40, height: 40, borderRadius: '50%' }}
             />
             <div>
-              <Text fw={700} size="lg">{selectedCrypto}</Text>
-              <Text size="sm" c="dimmed">
-                {selectedCrypto === 'TON' ? 'The Open Network' : 'Tether USD'}
-              </Text>
+              <Text fw={700} size="lg">TON</Text>
+              <Text size="sm" c="dimmed">The Open Network</Text>
             </div>
           </Group>
           <div style={{ textAlign: 'right' }}>
             <Text fw={700} size="lg">
-              {selectedCrypto === 'TON' ? balance.toFixed(2) : usdtBalance.toFixed(2)} {selectedCrypto}
+              {balance.toFixed(2)} TON
             </Text>
             <Text size="sm" c="dimmed">
-              {selectedCrypto === 'TON' ? usdValue : `${(usdtBalance * 100).toFixed(2)} ₽`}
+              {usdValue}
             </Text>
           </div>
         </Group>
@@ -253,9 +230,9 @@ export default function TonDetails({
       }}>
         <Stack gap="md">
           <Group justify="space-between">
-            <Text fw={500}>Цена {selectedCrypto}</Text>
+            <Text fw={500}>Цена TON</Text>
             <Text fw={700} size="lg">
-              {selectedCrypto === 'TON' ? tonPrice.toFixed(2) : '100.00'} ₽
+              {tonPrice.toFixed(2)} ₽
               <Text span c={priceChange >= 0 ? 'green' : 'red'} ml={8}>
                 {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
               </Text>
@@ -263,7 +240,7 @@ export default function TonDetails({
           </Group>
 
           <Box style={{ height: 'calc(100% - 100px)', position: 'relative' }}>
-            {isLoading ? (
+            {loading ? (
               <LoadingOverlay visible />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -275,8 +252,11 @@ export default function TonDetails({
                     </linearGradient>
                   </defs>
                   <XAxis 
-                    dataKey="timestamp" 
-                    tickFormatter={(timestamp) => formatDate(timestamp, selectedInterval)}
+                    dataKey="date" 
+                    tickFormatter={(str) => {
+                      const date = new Date(str);
+                      return formatDate(date.getTime(), selectedInterval);
+                    }}
                     minTickGap={30}
                     tick={{ fontSize: 12, fill: '#8E8E93' }}
                   />

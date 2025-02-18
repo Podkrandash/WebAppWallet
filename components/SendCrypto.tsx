@@ -81,6 +81,29 @@ export default function SendCrypto({
   const currentBalance = selectedCrypto === 'TON' ? balance : usdtBalance;
   const commissionInTon = 0.05;
 
+  const handleAmountChange = (value: string | number) => {
+    if (typeof value === 'string') {
+      // Разрешаем только цифры и одну точку
+      const sanitizedValue = value.replace(/[^\d.]/g, '');
+      const parts = sanitizedValue.split('.');
+      
+      // Если больше одной точки, оставляем только первую
+      if (parts.length > 2) {
+        parts.splice(2);
+      }
+      
+      // Ограничиваем количество знаков после точки
+      if (parts[1]?.length > 6) {
+        parts[1] = parts[1].slice(0, 6);
+      }
+      
+      const finalValue = parts.join('.');
+      setAmount(finalValue === '' ? 0 : parseFloat(finalValue));
+    } else {
+      setAmount(value);
+    }
+  };
+
   return (
     <Box style={{ 
       height: '100vh',
@@ -173,12 +196,13 @@ export default function SendCrypto({
             
             <NumberInput
               label="Сумма"
-              placeholder={selectedCrypto === 'TON' ? "0.1" : "1.000000"}
+              placeholder="0.00"
               value={amount}
-              onChange={(value) => setAmount(typeof value === 'string' ? '' : value)}
-              min={selectedCrypto === 'TON' ? 0.01 : 0.000001}
-              max={currentBalance - (selectedCrypto === 'TON' ? commissionInTon : 0)}
-              decimalScale={selectedCrypto === 'TON' ? 2 : 6}
+              onChange={handleAmountChange}
+              min={0}
+              max={selectedCrypto === 'TON' ? balance : usdtBalance}
+              decimalScale={6}
+              hideControls
               error={error && !amount ? 'Введите сумму' : null}
               size="xl"
               styles={{
