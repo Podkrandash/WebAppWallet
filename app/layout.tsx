@@ -1,8 +1,35 @@
 import React, { useEffect } from 'react';
 
-const Layout: React.FC = () => {
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: {
+        initData: string;
+        ready: () => void;
+        expand: () => void;
+        showAlert: (message: string) => void;
+        close: () => void;
+        enableClosingConfirmation: () => void;
+        setHeaderColor: (color: string) => void;
+        setBackgroundColor: (color: string) => void;
+        BackButton: {
+          onClick: (callback: () => void) => void;
+          hide: () => void;
+          show: () => void;
+        };
+      };
+    };
+  }
+}
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   useEffect(() => {
-    if (WebApp) {
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+      const WebApp = window.Telegram.WebApp;
       WebApp.ready();
       WebApp.expand();
       WebApp.enableClosingConfirmation();
@@ -23,8 +50,8 @@ const Layout: React.FC = () => {
   }, []);
 
   return (
-    // Rest of the component code
+    <html lang="ru">
+      <body>{children}</body>
+    </html>
   );
-};
-
-export default Layout; 
+} 
