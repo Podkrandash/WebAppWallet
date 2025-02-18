@@ -4,6 +4,7 @@ import { verifyTelegramWebAppData } from '../../../utils/telegram';
 import { TonClient, WalletContractV4 } from '@ton/ton';
 import { getSecureRandomBytes, keyPairFromSeed } from '@ton/crypto';
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
   try {
@@ -180,11 +181,16 @@ export async function POST(request: Request) {
     console.log('Создание транзакции...');
     const transaction = await prisma.transaction.create({
       data: {
+        id: `${Date.now()}-${user.id}`,
+        hash: `${Date.now()}-${user.id}`,
         type,
         amount,
         address,
-        userId: user.id
-      }
+        status: 'completed',
+        userId: user.id,
+        fee: 0,
+        timestamp: new Date()
+      } as unknown as Prisma.TransactionUncheckedCreateInput
     });
     console.log('Транзакция создана:', transaction);
 
