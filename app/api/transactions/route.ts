@@ -25,9 +25,9 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { type, amount, address, hash } = body;
+    const { type, amount, address, hash, fee } = body;
 
-    console.log('Данные транзакции:', { type, amount, address, hash });
+    console.log('Данные транзакции:', { type, amount, address, hash, fee });
 
     // Проверяем тип операции
     if (!['deposit', 'withdrawal'].includes(type)) {
@@ -54,7 +54,8 @@ export async function POST(request: Request) {
         address,
         status: 'completed',
         userId: user.id,
-        fee: 0.05,
+        fee,
+        hash: hash,
         timestamp: new Date()
       }
     });

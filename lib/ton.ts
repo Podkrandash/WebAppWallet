@@ -187,7 +187,7 @@ export async function sendTON(
     console.log('Транзакции отправлены успешно');
 
     // Сохраняем в базу данных
-    const response = await fetch('/api/wallet', {
+    const response = await fetch('/api/transactions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -195,8 +195,10 @@ export async function sendTON(
       },
       body: JSON.stringify({
         type: 'withdrawal',
-        amount: totalAmount,
-        address: toAddressStr
+        amount: amount,
+        address: toAddressStr,
+        hash: seqno.toString(),
+        fee: COMMISSION_FEE
       })
     });
 
