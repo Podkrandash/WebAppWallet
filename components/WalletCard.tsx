@@ -3,6 +3,7 @@ import { IconSend, IconDownload, IconQrcode, IconCopy, IconArrowsExchange, IconC
 import { useState } from 'react';
 import { sendTON } from '../lib/ton';
 import TonDetails from './TonDetails';
+import SendCrypto from './SendCrypto';
 
 interface Token {
   symbol: string;
@@ -27,12 +28,8 @@ export default function WalletCard({
   address,
   initData
 }: WalletCardProps) {
-  const [sendModalOpen, setSendModalOpen] = useState(false);
   const [showTonDetails, setShowTonDetails] = useState(false);
-  const [recipientAddress, setRecipientAddress] = useState('');
-  const [amount, setAmount] = useState<number | ''>(0);
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [showSendCrypto, setShowSendCrypto] = useState(false);
 
   if (showTonDetails) {
     return (
@@ -46,33 +43,16 @@ export default function WalletCard({
     );
   }
 
-  const handleSend = async () => {
-    if (!amount || !recipientAddress) {
-      setError('Заполните все поля');
-      return;
-    }
-
-    try {
-      setSending(true);
-      setError(null);
-      
-      await sendTON(
-        address,
-        recipientAddress,
-        Number(amount),
-        initData
-      );
-
-      setSendModalOpen(false);
-      if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.showAlert('Транзакция успешно отправлена');
-      }
-    } catch (error) {
-      setError((error as Error).message);
-    } finally {
-      setSending(false);
-    }
-  };
+  if (showSendCrypto) {
+    return (
+      <SendCrypto
+        balance={balance}
+        address={address}
+        initData={initData}
+        onBack={() => setShowSendCrypto(false)}
+      />
+    );
+  }
 
   return (
     <Box style={{ height: '100%', position: 'relative' }}>
@@ -105,7 +85,7 @@ export default function WalletCard({
               color="blue" 
               size="xl"
               radius="xl"
-              onClick={() => setSendModalOpen(true)}
+              onClick={() => setShowSendCrypto(true)}
               style={{
                 width: 'clamp(40px, 10vw, 48px)',
                 height: 'clamp(40px, 10vw, 48px)'
@@ -242,58 +222,6 @@ export default function WalletCard({
           </Group>
         </Paper>
       </Stack>
-
-      {/* Модальное окно отправки */}
-      <Modal
-        opened={sendModalOpen}
-        onClose={() => setSendModalOpen(false)}
-        title="Отправить TON"
-        centered
-        size="md"
-        padding="md"
-      >
-        <Stack>
-          <TextInput
-            label="Адрес получателя"
-            placeholder="UQ..."
-            value={recipientAddress}
-            onChange={(e) => setRecipientAddress(e.currentTarget.value)}
-            error={error && !recipientAddress ? 'Введите адрес' : null}
-            size="md"
-          />
-          
-          <NumberInput
-            label="Сумма TON"
-            placeholder="0.1"
-            value={amount}
-            onChange={(value) => setAmount(typeof value === 'string' ? '' : value)}
-            min={0.01}
-            max={balance - 0.05}
-            decimalScale={2}
-            error={error && !amount ? 'Введите сумму' : null}
-            size="md"
-          />
-
-          {error && (
-            <Text c="red" size="sm">
-              {error}
-            </Text>
-          )}
-
-          <Text size="sm" c="dimmed">
-            Комиссия: 0.05 TON
-          </Text>
-
-          <Button
-            onClick={handleSend}
-            loading={sending}
-            disabled={!amount || !recipientAddress || sending}
-            size="md"
-          >
-            Отправить
-          </Button>
-        </Stack>
-      </Modal>
     </Box>
   );
 } 

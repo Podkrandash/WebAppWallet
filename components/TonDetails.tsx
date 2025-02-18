@@ -27,12 +27,11 @@ interface Transaction {
 
 // Маппинг интервалов на количество дней
 const intervalToDays: Record<string, number> = {
-  'Ч': 1,
-  'Д': 7,
-  'Н': 14,
-  'М': 30,
-  '6М': 180,
-  'Г': 365
+  '1H': 1,
+  '1D': 1,
+  '1W': 7,
+  '1M': 30,
+  'ALL': 365
 };
 
 export default function TonDetails({
@@ -69,25 +68,37 @@ export default function TonDetails({
       try {
         setIsLoading(true);
         const days = intervalToDays[selectedInterval];
-        const response = await fetch(
-          `https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=${days}`
-        );
+        
+        // Для часового интервала используем минуты
+        const url = selectedInterval === '1H'
+          ? `https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=1&interval=minute`
+          : `https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=${days}`;
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error('Ошибка получения данных о цене');
+        }
+        
         const data = await response.json();
         
         // Определяем интервал между точками в зависимости от выбранного периода
         let interval = 1;
-        if (days > 30) interval = 12; // каждые 12 часов
-        if (days > 180) interval = 24; // каждые 24 часа
+        if (selectedInterval === '1H') interval = 5; // каждые 5 минут
+        else if (selectedInterval === '1D') interval = 15; // каждые 15 минут
+        else if (selectedInterval === '1W') interval = 2; // каждые 2 часа
+        else if (selectedInterval === '1M') interval = 12; // каждые 12 часов
+        else if (selectedInterval === 'ALL') interval = 24; // каждые 24 часа
 
-        // Прореживаем данные для оптимизации графика
+        // Фильтруем и форматируем данные
         const formattedData = data.prices
           .filter((_: any, index: number) => index % interval === 0)
           .map(([timestamp, price]: [number, number]) => ({
             timestamp,
-            price
+            price: Number(price.toFixed(2))
           }));
 
         setPriceData(formattedData);
+        
         if (formattedData.length > 0) {
           setCurrentPrice(formattedData[formattedData.length - 1].price);
         }
@@ -124,11 +135,12 @@ export default function TonDetails({
 
   const formatDate = (timestamp: number, interval: string) => {
     const date = new Date(timestamp);
-    const days = intervalToDays[interval];
     
-    if (days <= 1) {
+    if (interval === '1H') {
       return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-    } else if (days <= 7) {
+    } else if (interval === '1D') {
+      return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+    } else if (interval === '1W') {
       return `${date.getDate()}.${(date.getMonth() + 1).toString().padStart(2, '0')} ${date.getHours()}:00`;
     } else {
       return `${date.getDate()}.${(date.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -136,81 +148,49 @@ export default function TonDetails({
   };
 
   return (
-    <Box style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box style={{ 
+      height: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      padding: '16px',
+      gap: '12px',
+      background: '#F2F2F7'
+    }}>
       {/* Основная информация */}
-      <Paper p="md" radius="lg" style={{ background: 'white', marginBottom: 16 }}>
+      <Paper p="md" radius="lg" style={{ background: 'white' }}>
         <Group justify="space-between" align="flex-start">
           <Group>
             <img 
               src="https://ton.org/download/ton_symbol.png" 
               alt="TON"
               style={{ 
-                width: 48,
-                height: 48,
+                width: 40,
+                height: 40,
                 borderRadius: '50%'
               }}
             />
             <div>
-              <Text fw={700} size="xl">TON</Text>
-              <Text c="dimmed">The Open Network</Text>
+              <Text fw={700} size="lg">TON</Text>
+              <Text size="sm" c="dimmed">The Open Network</Text>
             </div>
           </Group>
           <div style={{ textAlign: 'right' }}>
-            <Text fw={700} size="xl">{balance.toFixed(2)}</Text>
-            <Text c="dimmed">{usdValue} ₽</Text>
+            <Text fw={700} size="lg">{balance.toFixed(2)}</Text>
+            <Text size="sm" c="dimmed">{usdValue} ₽</Text>
           </div>
         </Group>
       </Paper>
 
-      {/* Кнопки действий */}
-      <SimpleGrid cols={3} style={{ marginBottom: 16 }}>
-        <Button 
-          variant="light"
-          color="blue"
-          radius="xl"
-          leftSection={<IconSend size={20} />}
-          styles={{
-            root: {
-              height: 40
-            }
-          }}
-        >
-          Отправить
-        </Button>
-        <Button
-          variant="light"
-          color="blue"
-          radius="xl"
-          leftSection={<IconDownload size={20} />}
-          styles={{
-            root: {
-              height: 40
-            }
-          }}
-        >
-          Получить
-        </Button>
-        <Button
-          variant="light"
-          color="blue"
-          radius="xl"
-          leftSection={<IconQrcode size={20} />}
-          styles={{
-            root: {
-              height: 40
-            }
-          }}
-        >
-          QR-код
-        </Button>
-      </SimpleGrid>
-
       {/* График цены */}
-      <Paper p="md" radius="lg" style={{ background: 'white', marginBottom: 16, flex: 1, minHeight: 0 }}>
+      <Paper p="md" radius="lg" style={{ 
+        background: 'white',
+        flex: '0 0 auto',
+        height: 'min(45vh, 400px)'
+      }}>
         <Stack gap="md">
           <Group justify="space-between">
             <Text fw={500}>Цена TON</Text>
-            <Text fw={700} size="xl">
+            <Text fw={700} size="lg">
               {currentPrice.toFixed(2)} ₽
               <Text span c={priceChange >= 0 ? 'green' : 'red'} ml={8}>
                 {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
@@ -218,7 +198,7 @@ export default function TonDetails({
             </Text>
           </Group>
 
-          <Box style={{ height: 180, position: 'relative' }}>
+          <Box style={{ height: 'calc(100% - 100px)', position: 'relative' }}>
             {isLoading ? (
               <LoadingOverlay visible />
             ) : (
@@ -231,8 +211,8 @@ export default function TonDetails({
                     </linearGradient>
                   </defs>
                   <XAxis 
-                    dataKey="date" 
-                    tickFormatter={(date) => formatDate(date, selectedInterval)}
+                    dataKey="timestamp" 
+                    tickFormatter={(timestamp) => formatDate(timestamp, selectedInterval)}
                     minTickGap={30}
                     tick={{ fontSize: 12, fill: '#8E8E93' }}
                   />
@@ -248,7 +228,7 @@ export default function TonDetails({
                           <Paper p="xs" radius="md" style={{ background: 'rgba(255, 255, 255, 0.95)' }}>
                             <Text fw={500}>{value.toFixed(2)} ₽</Text>
                             <Text size="xs" c="dimmed">
-                              {formatDate(payload[0].payload.date, selectedInterval)}
+                              {formatDate(payload[0].payload.timestamp, selectedInterval)}
                             </Text>
                           </Paper>
                         );
@@ -291,13 +271,50 @@ export default function TonDetails({
       </Paper>
 
       {/* История транзакций */}
-      <Paper p="md" radius="lg" style={{ background: 'white', marginBottom: 16 }}>
-        <Stack gap="md">
-          <Text fw={500}>История транзакций</Text>
-          <Text c="dimmed" size="sm" ta="center">
-            Транзакции отсутствуют
-          </Text>
-        </Stack>
+      <Paper p="md" radius="lg" style={{ 
+        background: 'white',
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0
+      }}>
+        <Text fw={500} mb="md">История транзакций</Text>
+        <Box style={{ 
+          flex: 1, 
+          overflowY: 'auto',
+          minHeight: 0
+        }}>
+          {transactions.length === 0 ? (
+            <Text c="dimmed" size="sm" ta="center">
+              Транзакции отсутствуют
+            </Text>
+          ) : (
+            <Stack gap="sm">
+              {transactions.map((tx, index) => (
+                <Paper
+                  key={index}
+                  p="sm"
+                  radius="md"
+                  style={{ background: 'rgba(0, 0, 0, 0.03)' }}
+                >
+                  <Group justify="space-between">
+                    <div>
+                      <Text size="sm" fw={500}>
+                        {tx.type === 'deposit' ? 'Получено' : 'Отправлено'}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {new Date(tx.timestamp).toLocaleString()}
+                      </Text>
+                    </div>
+                    <Text fw={500} c={tx.type === 'deposit' ? 'green' : 'red'}>
+                      {tx.type === 'deposit' ? '+' : '-'}{tx.amount} TON
+                    </Text>
+                  </Group>
+                </Paper>
+              ))}
+            </Stack>
+          )}
+        </Box>
       </Paper>
     </Box>
   );

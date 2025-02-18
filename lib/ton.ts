@@ -27,11 +27,15 @@ interface WalletData {
 }
 
 export interface Transaction {
-  type: 'deposit' | 'withdrawal';
+  id: string;
+  type: string;  // 'deposit' или 'withdrawal'
   amount: number;
-  address?: string;
+  address: string | null;
   status: string;
   timestamp: string;
+  hash: string;
+  fee: number;
+  userId: number;
 }
 
 export async function initWallet(initData: string): Promise<WalletData | null> {

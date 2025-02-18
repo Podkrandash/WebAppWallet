@@ -1,8 +1,15 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
 import { verifyTelegramWebAppData } from '../../../utils/telegram';
+import { TonClient, Address } from '@ton/ton';
+import { Prisma } from '@prisma/client';
 
-export async function GET(request: Request) {
+const client = new TonClient({
+  endpoint: 'https://toncenter.com/api/v2/jsonRPC',
+  apiKey: process.env.TONCENTER_API_KEY
+});
+
+export async function POST(request: Request) {
   try {
     const telegramInitData = request.headers.get('x-telegram-init-data');
     if (!telegramInitData) {
@@ -17,6 +24,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Invalid Telegram init data' }, { status: 401 });
     }
 
+    const body = await request.json();
+    const { type, amount, address, hash } = body;
+
+    console.log('Данные транзакции:', { type, amount, address, hash });
+
+    // Проверяем тип операции
+    if (!['deposit', 'withdrawal'].includes(type)) {
+      console.error('Invalid transaction type:', type);
+      return NextResponse.json({ error: 'Invalid transaction type' }, { status: 400 });
+    }
+
     console.log('Поиск пользователя:', telegramUser.id);
     const user = await prisma.user.findUnique({
       where: { telegramId: telegramUser.id.toString() }
@@ -27,16 +45,41 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    console.log('Получение транзакций для пользователя:', user.id);
-    // Получаем транзакции пользователя
-    const transactions = await prisma.transaction.findMany({
-      where: { userId: user.id },
-      orderBy: { timestamp: 'desc' },
-      take: 50
+    console.log('Создание транзакции...');
+    const transaction = await prisma.transaction.create({
+      data: {
+        id: hash,
+        type,
+        amount,
+        address,
+        status: 'completed',
+        userId: user.id,
+        fee: 0.05,
+        timestamp: new Date()
+      }
     });
 
-    console.log('Найдено транзакций:', transactions.length);
-    return NextResponse.json(transactions);
+    console.log('Транзакция создана:', transaction);
+
+    // Обновляем баланс кошелька
+    console.log('Обновление баланса кошелька...');
+    const wallet = await prisma.wallet.findFirst({
+      where: { userId: user.id }
+    });
+
+    if (wallet) {
+      const newBalance = type === 'deposit' 
+        ? wallet.balance + amount 
+        : wallet.balance - amount;
+      
+      await prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { balance: newBalance }
+      });
+      console.log('Баланс обновлен:', newBalance);
+    }
+
+    return NextResponse.json(transaction);
   } catch (error) {
     console.error('Error in transactions API:', error);
     return NextResponse.json(

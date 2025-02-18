@@ -3,9 +3,7 @@ import { Container, LoadingOverlay, Stack, Text, Alert, Box } from '@mantine/cor
 import { IconAlertCircle } from '@tabler/icons-react';
 import Script from 'next/script';
 import WalletCard from '../components/WalletCard';
-import TransactionHistory from '../components/TransactionHistory';
-import BottomNavigation from '../components/BottomNavigation';
-import { initWallet, getBalance, getTransactions, Transaction } from '../lib/ton';
+import { initWallet, getBalance } from '../lib/ton';
 
 interface WalletData {
   balance: number;
@@ -37,9 +35,7 @@ declare global {
 
 export default function Home() {
   const [wallet, setWallet] = useState<WalletData | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activePage, setActivePage] = useState<'wallet' | 'history'>('wallet');
   const [error, setError] = useState<string | null>(null);
   const [initData, setInitData] = useState<string>('');
 
@@ -70,14 +66,6 @@ export default function Home() {
         console.error('Ошибка настройки внешнего вида:', e);
       }
 
-      // Обработка кнопки "Назад"
-      webapp.BackButton.onClick(() => {
-        if (activePage === 'history') {
-          setActivePage('wallet');
-          webapp.BackButton.hide();
-        }
-      });
-
       try {
         webapp.ready();
       } catch (e) {
@@ -102,16 +90,12 @@ export default function Home() {
           }
 
           try {
-            const [balanceData, txData] = await Promise.all([
-              getBalance(walletData.address),
-              getTransactions(walletData.address)
-            ]);
+            const balanceData = await getBalance(walletData.address);
 
             setWallet({
               address: walletData.address,
               ...balanceData
             });
-            setTransactions(txData);
           } catch (err) {
             console.error('Ошибка при получении данных кошелька:', err);
             setError('Ошибка при получении данных кошелька: ' + (err as Error).message);
@@ -123,19 +107,7 @@ export default function Home() {
         })
         .finally(() => setLoading(false));
     }
-  }, [activePage]);
-
-  // Обработчик смены страницы
-  const handlePageChange = (page: 'wallet' | 'history') => {
-    setActivePage(page);
-    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-      if (page === 'history') {
-        window.Telegram.WebApp.BackButton.show();
-      } else {
-        window.Telegram.WebApp.BackButton.hide();
-      }
-    }
-  };
+  }, []);
 
   if (error) {
     return (
@@ -166,31 +138,13 @@ export default function Home() {
       >
         <LoadingOverlay visible={loading} />
         
-        {activePage === 'wallet' && wallet && (
-          <>
-            <WalletCard
-              balance={wallet.balance}
-              usdValue={wallet.usdValue}
-              address={wallet.address}
-              initData={initData}
-            />
-            <BottomNavigation
-              active={activePage}
-              onNavigate={handlePageChange}
-            />
-          </>
-        )}
-
-        {activePage === 'history' && (
-          <>
-            <Box px="md">
-              <TransactionHistory transactions={transactions} />
-            </Box>
-            <BottomNavigation
-              active={activePage}
-              onNavigate={handlePageChange}
-            />
-          </>
+        {wallet && (
+          <WalletCard
+            balance={wallet.balance}
+            usdValue={wallet.usdValue}
+            address={wallet.address}
+            initData={initData}
+          />
         )}
       </Box>
     </>

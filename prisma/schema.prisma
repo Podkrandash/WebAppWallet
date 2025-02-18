@@ -37,11 +37,13 @@ model Wallet {
 }
 
 model Transaction {
-  id        Int      @id @default(autoincrement())
+  id        String   @id
+  hash      String   // Хеш транзакции
   type      String   // 'deposit' или 'withdrawal'
   amount    Float
   address   String?
   status    String   @default("completed")
   userId    Int
+  fee       Float
   timestamp DateTime @default(now())
 }
