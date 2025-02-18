@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { sendTON } from '../lib/ton';
 import TonDetails from './TonDetails';
 import SendCrypto from './SendCrypto';
+import UsdtDetails from './UsdtDetails';
 
 interface Token {
   symbol: string;
@@ -33,6 +34,7 @@ export default function WalletCard({
   usdtBalance = 0
 }: WalletCardProps) {
   const [showTonDetails, setShowTonDetails] = useState(false);
+  const [showUsdtDetails, setShowUsdtDetails] = useState(false);
   const [showSendCrypto, setShowSendCrypto] = useState(false);
 
   // Расчет общего баланса в рублях
@@ -48,6 +50,16 @@ export default function WalletCard({
         usdtBalance={usdtBalance}
         priceChange={-39.37}
         onBack={() => setShowTonDetails(false)}
+      />
+    );
+  }
+
+  if (showUsdtDetails) {
+    return (
+      <UsdtDetails
+        usdtBalance={usdtBalance}
+        address={address}
+        onBack={() => setShowUsdtDetails(false)}
       />
     );
   }
@@ -250,6 +262,7 @@ export default function WalletCard({
               backdropFilter: 'blur(10px)',
               cursor: 'pointer'
             }}
+            onClick={() => setShowUsdtDetails(true)}
           >
             <Group justify="space-between" align="flex-start">
               <Group>

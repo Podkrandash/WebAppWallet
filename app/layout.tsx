@@ -36,15 +36,8 @@ export default function RootLayout({
       
       // Более агрессивное предотвращение закрытия при свайпе
       const preventClose = (e: TouchEvent) => {
-        if (e.touches.length > 0) {
-          const touch = e.touches[0];
-          const startY = touch.clientY;
-          
-          if (startY < 100) { // Если свайп начинается в верхней части экрана
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }
+        e.preventDefault();
+        e.stopPropagation();
         return false;
       };
 
@@ -63,10 +56,25 @@ export default function RootLayout({
       document.documentElement.style.height = '100%';
       document.documentElement.style.overscrollBehavior = 'none';
       
+      // Добавляем CSS для предотвращения свайпа
+      const style = document.createElement('style');
+      style.textContent = `
+        html, body {
+          overscroll-behavior: none !important;
+          touch-action: none !important;
+          position: fixed !important;
+          width: 100% !important;
+          height: 100% !important;
+          overflow: hidden !important;
+        }
+      `;
+      document.head.appendChild(style);
+      
       return () => {
         document.removeEventListener('touchstart', preventClose, { capture: true });
         document.removeEventListener('touchmove', preventClose, { capture: true });
         document.removeEventListener('touchend', preventClose, { capture: true });
+        document.head.removeChild(style);
       };
     }
   }, []);
