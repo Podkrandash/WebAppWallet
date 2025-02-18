@@ -126,19 +126,42 @@ export async function GET(request: Request) {
 
 // Функция для шифрования приватного ключа
 function encryptPrivateKey(privateKey: string, initData: string): string {
-  const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
-  if (!ENCRYPTION_KEY) {
-    throw new Error('ENCRYPTION_KEY not found in environment variables');
-  }
+  try {
+    console.log('=== Начало шифрования ключа ===');
+    
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+    if (!ENCRYPTION_KEY) {
+      throw new Error('ENCRYPTION_KEY not found in environment variables');
+    }
 
-  const algorithm = 'aes-256-gcm';
-  const iv = crypto.randomBytes(12);
-  const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
-  const cipher = crypto.createCipheriv(algorithm, key, iv);
-  let encrypted = cipher.update(privateKey, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  const authTag = cipher.getAuthTag();
-  return iv.toString('hex') + ':' + authTag.toString('hex') + ':' + encrypted;
+    const algorithm = 'aes-256-gcm';
+    const iv = crypto.randomBytes(12);
+    const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+    
+    console.log('Параметры шифрования:', {
+      ivLength: iv.length,
+      keyLength: key.length,
+      privateKeyLength: privateKey.length
+    });
+
+    const cipher = crypto.createCipheriv(algorithm, key, iv);
+    let encrypted = cipher.update(privateKey, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    const authTag = cipher.getAuthTag();
+
+    console.log('Результат шифрования:', {
+      encryptedLength: encrypted.length,
+      authTagLength: authTag.length
+    });
+
+    const result = `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
+    console.log('=== Шифрование ключа завершено успешно ===');
+    
+    return result;
+  } catch (error) {
+    console.error('=== Ошибка шифрования ключа ===', error);
+    throw error;
+  }
 }
 
 export async function POST(request: Request) {

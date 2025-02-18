@@ -20,16 +20,23 @@ interface WalletCardProps {
   usdValue: string;
   address: string;
   initData: string;
+  tonPrice?: number;
+  usdtBalance: number;
 }
 
 export default function WalletCard({ 
   balance, 
   usdValue, 
   address,
-  initData
+  initData,
+  tonPrice = 0,
+  usdtBalance = 0
 }: WalletCardProps) {
   const [showTonDetails, setShowTonDetails] = useState(false);
   const [showSendCrypto, setShowSendCrypto] = useState(false);
+
+  // Расчет общего баланса в рублях
+  const totalBalanceRub = Number(usdValue.replace(/[^\d.-]/g, '')) + (usdtBalance * 100);
 
   if (showTonDetails) {
     return (
@@ -37,6 +44,8 @@ export default function WalletCard({
         balance={balance}
         usdValue={usdValue}
         address={address}
+        tonPrice={tonPrice}
+        usdtBalance={usdtBalance}
         priceChange={-39.37}
         onBack={() => setShowTonDetails(false)}
       />
@@ -47,6 +56,7 @@ export default function WalletCard({
     return (
       <SendCrypto
         balance={balance}
+        usdtBalance={usdtBalance}
         address={address}
         initData={initData}
         onBack={() => setShowSendCrypto(false)}
@@ -66,11 +76,17 @@ export default function WalletCard({
               lineHeight: 1.1
             }}
           >
-            {balance.toFixed(2)} TON
+            {totalBalanceRub.toFixed(2)} ₽
           </Text>
-          <Text size="lg" c="dimmed">
-            {usdValue} ₽
-          </Text>
+          <Group gap={8}>
+            <Text size="lg" c="dimmed">
+              {balance.toFixed(2)} TON
+            </Text>
+            <Text size="lg" c="dimmed">•</Text>
+            <Text size="lg" c="dimmed">
+              {usdtBalance.toFixed(2)} USDT
+            </Text>
+          </Group>
           <Text size="sm" c="dimmed">
             {address.slice(0, 4)}...{address.slice(-4)}
           </Text>
@@ -185,45 +201,85 @@ export default function WalletCard({
         </SimpleGrid>
 
         {/* Список токенов */}
-        <Paper 
-          p="md"
-          radius="md"
-          style={{
-            background: 'rgba(255, 255, 255, 0.5)',
-            backdropFilter: 'blur(10px)',
-            cursor: 'pointer'
-          }}
-          onClick={() => setShowTonDetails(true)}
-        >
-          <Group justify="space-between" align="flex-start">
-            <Group>
-              <img 
-                src="https://ton.org/download/ton_symbol.png" 
-                alt="TON"
-                style={{ 
-                  width: 32,
-                  height: 32,
-                  borderRadius: '50%'
-                }}
-              />
-              <div>
-                <Group gap={4}>
-                  <Text fw={500}>TON</Text>
-                </Group>
-                <Group gap={4}>
-                  <Text c="dimmed">{balance.toFixed(2)} TON</Text>
-                  <Text c="green">+0.48%</Text>
-                </Group>
+        <Stack gap="md">
+          <Paper 
+            p="md"
+            radius="md"
+            style={{
+              background: 'rgba(255, 255, 255, 0.5)',
+              backdropFilter: 'blur(10px)',
+              cursor: 'pointer'
+            }}
+            onClick={() => setShowTonDetails(true)}
+          >
+            <Group justify="space-between" align="flex-start">
+              <Group>
+                <img 
+                  src="https://ton.org/download/ton_symbol.png" 
+                  alt="TON"
+                  style={{ 
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%'
+                  }}
+                />
+                <div>
+                  <Group gap={4}>
+                    <Text fw={500}>TON</Text>
+                  </Group>
+                  <Group gap={4}>
+                    <Text c="dimmed">{balance.toFixed(2)} TON</Text>
+                    <Text c="green">+0.48%</Text>
+                  </Group>
+                </div>
+              </Group>
+              <div style={{ textAlign: 'right' }}>
+                <Text fw={500}>{balance.toFixed(2)} TON</Text>
+                <Text c="dimmed">
+                  {usdValue} ₽
+                </Text>
               </div>
             </Group>
-            <div style={{ textAlign: 'right' }}>
-              <Text fw={500}>{balance.toFixed(2)} TON</Text>
-              <Text c="dimmed">
-                {usdValue} ₽
-              </Text>
-            </div>
-          </Group>
-        </Paper>
+          </Paper>
+
+          <Paper 
+            p="md"
+            radius="md"
+            style={{
+              background: 'rgba(255, 255, 255, 0.5)',
+              backdropFilter: 'blur(10px)',
+              cursor: 'pointer'
+            }}
+          >
+            <Group justify="space-between" align="flex-start">
+              <Group>
+                <img 
+                  src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png" 
+                  alt="USDT"
+                  style={{ 
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%'
+                  }}
+                />
+                <div>
+                  <Group gap={4}>
+                    <Text fw={500}>USDT</Text>
+                  </Group>
+                  <Group gap={4}>
+                    <Text c="dimmed">{usdtBalance.toFixed(2)} USDT</Text>
+                  </Group>
+                </div>
+              </Group>
+              <div style={{ textAlign: 'right' }}>
+                <Text fw={500}>{usdtBalance.toFixed(2)} USDT</Text>
+                <Text c="dimmed">
+                  {(usdtBalance * 100).toFixed(2)} ₽
+                </Text>
+              </div>
+            </Group>
+          </Paper>
+        </Stack>
       </Stack>
     </Box>
   );

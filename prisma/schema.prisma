@@ -30,6 +30,7 @@ model Wallet {
   publicKey    String
   encryptedKey String
   balance      Float    @default(0)
+  usdtBalance  Float    @default(0)
   user         User     @relation(fields: [userId], references: [id])
   userId       Int
   createdAt    DateTime @default(now())
@@ -45,5 +46,6 @@ model Transaction {
   status    String   @default("completed")
   userId    Int
   fee       Float
+  token     String   @default("TON") // Тип токена: TON или USDT
   timestamp DateTime @default(now())
 }

@@ -1,21 +1,26 @@
-import { Box, Text, Paper, Stack, TextInput, NumberInput, Button, Group } from '@mantine/core';
+import { Box, Text, Paper, Stack, TextInput, NumberInput, Button, Group, SegmentedControl } from '@mantine/core';
 import { IconSend } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
-import { sendTON } from '../lib/ton';
+import { sendTON, sendUSDT } from '../lib/ton';
 
 interface SendCryptoProps {
   balance: number;
+  usdtBalance: number;
   address: string;
   initData: string;
   onBack: () => void;
 }
 
+type CryptoType = 'TON' | 'USDT';
+
 export default function SendCrypto({
   balance,
+  usdtBalance,
   address,
   initData,
   onBack
 }: SendCryptoProps) {
+  const [selectedCrypto, setSelectedCrypto] = useState<CryptoType>('TON');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [amount, setAmount] = useState<number | ''>(0);
   const [sending, setSending] = useState(false);
@@ -46,12 +51,21 @@ export default function SendCrypto({
       setSending(true);
       setError(null);
       
-      await sendTON(
-        address,
-        recipientAddress,
-        Number(amount),
-        initData
-      );
+      if (selectedCrypto === 'TON') {
+        await sendTON(
+          address,
+          recipientAddress,
+          Number(amount),
+          initData
+        );
+      } else {
+        await sendUSDT(
+          address,
+          recipientAddress,
+          Number(amount),
+          initData
+        );
+      }
 
       if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.showAlert('Транзакция успешно отправлена');
@@ -64,6 +78,9 @@ export default function SendCrypto({
     }
   };
 
+  const currentBalance = selectedCrypto === 'TON' ? balance : usdtBalance;
+  const commissionInTon = 0.05;
+
   return (
     <Box style={{ 
       height: '100vh',
@@ -73,10 +90,48 @@ export default function SendCrypto({
       <Stack gap="md">
         <Paper p="xl" radius="lg" style={{ background: 'white' }}>
           <Stack gap="xl">
+            <SegmentedControl
+              value={selectedCrypto}
+              onChange={(value) => setSelectedCrypto(value as CryptoType)}
+              data={[
+                {
+                  label: (
+                    <Group>
+                      <img 
+                        src="https://ton.org/download/ton_symbol.png" 
+                        alt="TON"
+                        style={{ width: 20, height: 20, borderRadius: '50%' }}
+                      />
+                      <Text>TON</Text>
+                    </Group>
+                  ),
+                  value: 'TON'
+                },
+                {
+                  label: (
+                    <Group>
+                      <img 
+                        src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png" 
+                        alt="USDT"
+                        style={{ width: 20, height: 20, borderRadius: '50%' }}
+                      />
+                      <Text>USDT</Text>
+                    </Group>
+                  ),
+                  value: 'USDT'
+                }
+              ]}
+              fullWidth
+              size="lg"
+            />
+
             <Group justify="center">
               <img 
-                src="https://ton.org/download/ton_symbol.png" 
-                alt="TON"
+                src={selectedCrypto === 'TON' 
+                  ? "https://ton.org/download/ton_symbol.png"
+                  : "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png"
+                }
+                alt={selectedCrypto}
                 style={{ 
                   width: 64,
                   height: 64,
@@ -84,8 +139,10 @@ export default function SendCrypto({
                 }}
               />
               <Stack gap={4} align="center">
-                <Text size="xl" fw={700}>TON</Text>
-                <Text size="sm" c="dimmed">Доступно: {(balance - 0.05).toFixed(2)} TON</Text>
+                <Text size="xl" fw={700}>{selectedCrypto}</Text>
+                <Text size="sm" c="dimmed">
+                  Доступно: {(currentBalance - (selectedCrypto === 'TON' ? commissionInTon : 0)).toFixed(selectedCrypto === 'TON' ? 2 : 6)} {selectedCrypto}
+                </Text>
               </Stack>
             </Group>
 
@@ -115,13 +172,13 @@ export default function SendCrypto({
             />
             
             <NumberInput
-              label="Сумма TON"
-              placeholder="0.1"
+              label="Сумма"
+              placeholder={selectedCrypto === 'TON' ? "0.1" : "1.000000"}
               value={amount}
               onChange={(value) => setAmount(typeof value === 'string' ? '' : value)}
-              min={0.01}
-              max={balance - 0.05}
-              decimalScale={2}
+              min={selectedCrypto === 'TON' ? 0.01 : 0.000001}
+              max={currentBalance - (selectedCrypto === 'TON' ? commissionInTon : 0)}
+              decimalScale={selectedCrypto === 'TON' ? 2 : 6}
               error={error && !amount ? 'Введите сумму' : null}
               size="xl"
               styles={{
@@ -142,7 +199,7 @@ export default function SendCrypto({
                 }
               }}
               rightSection={
-                <Text c="dimmed" pr="md" fw={500}>TON</Text>
+                <Text c="dimmed" pr="md" fw={500}>{selectedCrypto}</Text>
               }
             />
 
@@ -154,7 +211,7 @@ export default function SendCrypto({
 
             <Stack gap="md">
               <Text size="sm" c="dimmed" ta="center">
-                Комиссия сети: 0.05 TON
+                Комиссия сети: {commissionInTon} TON
               </Text>
 
               <Button

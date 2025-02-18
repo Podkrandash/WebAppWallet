@@ -1,4 +1,4 @@
-import { Box, Text, Stack, Group, UnstyledButton, Paper, Button, SimpleGrid } from '@mantine/core';
+import { Box, Text, Stack, Group, UnstyledButton, Paper, Button, SimpleGrid, SegmentedControl } from '@mantine/core';
 import { IconArrowUp, IconArrowDown, IconArrowsUpDown, IconSend, IconDownload, IconQrcode } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from 'recharts';
@@ -8,6 +8,8 @@ interface TonDetailsProps {
   balance: number;
   usdValue: string;
   address: string;
+  tonPrice: number;
+  usdtBalance: number;
   priceChange: number;
   onBack: () => void;
 }
@@ -23,6 +25,7 @@ interface Transaction {
   address?: string;
   status: string;
   timestamp: string;
+  token?: string;
 }
 
 // Маппинг интервалов на количество дней
@@ -38,6 +41,8 @@ export default function TonDetails({
   balance,
   usdValue,
   address,
+  tonPrice,
+  usdtBalance,
   priceChange: initialPriceChange,
   onBack
 }: TonDetailsProps) {
@@ -47,6 +52,7 @@ export default function TonDetails({
   const [priceChange, setPriceChange] = useState<number>(initialPriceChange);
   const [isLoading, setIsLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [selectedCrypto, setSelectedCrypto] = useState<'TON' | 'USDT'>('TON');
 
   useEffect(() => {
     // Показываем кнопку назад в Telegram WebApp
@@ -70,10 +76,11 @@ export default function TonDetails({
         setIsLoading(true);
         const days = intervalToDays[selectedInterval];
         
-        // Формируем URL в зависимости от интервала
+        // URL в зависимости от выбранной криптовалюты
+        const coinId = selectedCrypto === 'TON' ? 'the-open-network' : 'tether';
         const url = selectedInterval === '1H'
-          ? 'https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=1&interval=minute'
-          : `https://api.coingecko.com/api/v3/coins/the-open-network/market_chart?vs_currency=rub&days=${days}`;
+          ? `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=rub&days=1&interval=minute`
+          : `https://api.coingecko.com/api/v3/coins/${coinId}/market_chart?vs_currency=rub&days=${days}`;
         
         const response = await fetch(url);
         if (!response.ok) {
@@ -122,7 +129,7 @@ export default function TonDetails({
     };
 
     fetchPriceData();
-  }, [selectedInterval]);
+  }, [selectedInterval, selectedCrypto]);
 
   useEffect(() => {
     // Загрузка транзакций
@@ -168,13 +175,52 @@ export default function TonDetails({
       gap: '12px',
       background: '#F2F2F7'
     }}>
+      {/* Переключатель криптовалют */}
+      <SegmentedControl
+        value={selectedCrypto}
+        onChange={(value) => setSelectedCrypto(value as 'TON' | 'USDT')}
+        data={[
+          {
+            label: (
+              <Group>
+                <img 
+                  src="https://ton.org/download/ton_symbol.png" 
+                  alt="TON"
+                  style={{ width: 20, height: 20, borderRadius: '50%' }}
+                />
+                <Text>TON</Text>
+              </Group>
+            ),
+            value: 'TON'
+          },
+          {
+            label: (
+              <Group>
+                <img 
+                  src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png" 
+                  alt="USDT"
+                  style={{ width: 20, height: 20, borderRadius: '50%' }}
+                />
+                <Text>USDT</Text>
+              </Group>
+            ),
+            value: 'USDT'
+          }
+        ]}
+        fullWidth
+        size="lg"
+      />
+
       {/* Основная информация */}
       <Paper p="md" radius="lg" style={{ background: 'white' }}>
         <Group justify="space-between" align="flex-start">
           <Group>
             <img 
-              src="https://ton.org/download/ton_symbol.png" 
-              alt="TON"
+              src={selectedCrypto === 'TON' 
+                ? "https://ton.org/download/ton_symbol.png"
+                : "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png"
+              }
+              alt={selectedCrypto}
               style={{ 
                 width: 40,
                 height: 40,
@@ -182,13 +228,19 @@ export default function TonDetails({
               }}
             />
             <div>
-              <Text fw={700} size="lg">TON</Text>
-              <Text size="sm" c="dimmed">The Open Network</Text>
+              <Text fw={700} size="lg">{selectedCrypto}</Text>
+              <Text size="sm" c="dimmed">
+                {selectedCrypto === 'TON' ? 'The Open Network' : 'Tether USD'}
+              </Text>
             </div>
           </Group>
           <div style={{ textAlign: 'right' }}>
-            <Text fw={700} size="lg">{balance.toFixed(2)}</Text>
-            <Text size="sm" c="dimmed">{usdValue} ₽</Text>
+            <Text fw={700} size="lg">
+              {selectedCrypto === 'TON' ? balance.toFixed(2) : usdtBalance.toFixed(2)} {selectedCrypto}
+            </Text>
+            <Text size="sm" c="dimmed">
+              {selectedCrypto === 'TON' ? usdValue : `${(usdtBalance * 100).toFixed(2)} ₽`}
+            </Text>
           </div>
         </Group>
       </Paper>
@@ -201,9 +253,9 @@ export default function TonDetails({
       }}>
         <Stack gap="md">
           <Group justify="space-between">
-            <Text fw={500}>Цена TON</Text>
+            <Text fw={500}>Цена {selectedCrypto}</Text>
             <Text fw={700} size="lg">
-              {currentPrice.toFixed(2)} ₽
+              {selectedCrypto === 'TON' ? tonPrice.toFixed(2) : '100.00'} ₽
               <Text span c={priceChange >= 0 ? 'green' : 'red'} ml={8}>
                 {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
               </Text>
@@ -312,14 +364,14 @@ export default function TonDetails({
                   <Group justify="space-between">
                     <div>
                       <Text size="sm" fw={500}>
-                        {tx.type === 'deposit' ? 'Получено' : 'Отправлено'}
+                        {tx.type === 'deposit' ? 'Получено' : 'Отправлено'} {tx.token || 'TON'}
                       </Text>
                       <Text size="xs" c="dimmed">
                         {new Date(tx.timestamp).toLocaleString()}
                       </Text>
                     </div>
                     <Text fw={500} c={tx.type === 'deposit' ? 'green' : 'red'}>
-                      {tx.type === 'deposit' ? '+' : '-'}{tx.amount} TON
+                      {tx.type === 'deposit' ? '+' : '-'}{tx.amount} {tx.token || 'TON'}
                     </Text>
                   </Group>
                 </Paper>
