@@ -172,9 +172,18 @@ export default function SendCrypto({
             <TextInput
               label="Адрес получателя"
               placeholder="UQ..."
+              description="Адрес должен начинаться с UQ"
               value={recipientAddress}
-              onChange={(e) => setRecipientAddress(e.target.value)}
-              error={error && !recipientAddress ? 'Введите адрес' : null}
+              onChange={(e) => {
+                const value = e.target.value;
+                setRecipientAddress(value);
+                if (value && !value.startsWith('UQ')) {
+                  setError('Адрес должен начинаться с UQ');
+                } else {
+                  setError(null);
+                }
+              }}
+              error={error}
               size="lg"
               styles={{
                 input: {

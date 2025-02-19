@@ -239,7 +239,7 @@ export default function WalletCard({
                     <Text fw={500}>TON</Text>
                   </Group>
                   <Group gap={4}>
-                    <Text c="dimmed">1 TON = {tonPrice.toFixed(2)} ₽</Text>
+                    <Text c="dimmed"> {tonPrice.toFixed(2)} ₽</Text>
                     <Text c="green">+0.48%</Text>
                   </Group>
                 </div>
@@ -279,7 +279,7 @@ export default function WalletCard({
                     <Text fw={500}>USDT</Text>
                   </Group>
                   <Group gap={4}>
-                    <Text c="dimmed">1 USDT = 100.00 ₽</Text>
+                    <Text c="dimmed">91.00 ₽</Text>
                   </Group>
                 </div>
               </Group>

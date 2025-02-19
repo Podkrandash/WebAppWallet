@@ -174,6 +174,12 @@ export async function sendTON(
 ): Promise<boolean> {
   try {
     console.log('=== Начало отправки TON ===');
+    
+    // Проверяем формат адреса получателя
+    if (!toAddressStr.startsWith('UQ')) {
+      throw new Error('Неверный формат адреса. Адрес должен начинаться с UQ');
+    }
+
     console.log('Переменные окружения:', {
       hasNextPublicEncryptionKey: !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY,
       nextPublicEncryptionKeyLength: process.env.NEXT_PUBLIC_ENCRYPTION_KEY?.length,
