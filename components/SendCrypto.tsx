@@ -108,7 +108,7 @@ export default function SendCrypto({
       if (errorMessage.includes('Недостаточно средств')) {
         errorMessage = `Недостаточно ${selectedCrypto} для отправки. Проверьте баланс и сумму комиссии.`;
       } else if (errorMessage.includes('Неверный формат адреса')) {
-        errorMessage = 'Неверный формат адреса получателя. Адрес должен начинаться с UQ или EQ.';
+        errorMessage = 'Неверный формат адреса TON';
       } else if (errorMessage.includes('429')) {
         errorMessage = 'Слишком много запросов. Пожалуйста, подождите немного и попробуйте снова.';
       } else if (errorMessage.includes('500')) {
@@ -218,53 +218,21 @@ export default function SendCrypto({
 
             <TextInput
               label="Адрес получателя"
-              placeholder="EQ... или UQ..."
-              description="Введите адрес кошелька TON"
+              placeholder="Введите адрес TON"
+              description="Например: UQDB261B0BQdjr7hZlnmPKPH3iH5XZkfKQklf6GvbEErjuUT"
               value={recipientAddress}
               onChange={(e) => {
-                const value = e.target.value.trim();
+                const value = e.target.value;
                 setRecipientAddress(value);
+                
                 if (value) {
                   try {
-                    // Пробуем распарсить адрес через TON SDK
-                    const parsedAddress = Address.parse(value);
-                    
-                    // Проверяем воркчейн (должен быть 0)
-                    if (parsedAddress.workChain !== 0) {
-                      setError('Адрес должен быть в воркчейне 0');
-                      return;
-                    }
-
-                    // Нормализуем адрес
-                    const normalizedAddress = parsedAddress.toString({
-                      urlSafe: true,
-                      bounceable: true,
-                      testOnly: false
-                    });
-                    
-                    // Если адрес изменился после нормализации, обновляем поле
-                    if (normalizedAddress !== value) {
-                      setRecipientAddress(normalizedAddress);
-                    }
-                    
+                    console.log('Пробуем парсить адрес:', value);
+                    const parsedAddress = Address.parse(value.trim());
+                    console.log('Адрес успешно распарсен:', parsedAddress.toString());
                     setError(null);
                   } catch (error) {
-                    // Проверяем, может быть это raw адрес
-                    if (value.match(/^[0-9a-fA-F]{64}$/)) {
-                      try {
-                        const rawAddress = new Address(0, Buffer.from(value, 'hex'));
-                        const friendlyAddress = rawAddress.toString({
-                          urlSafe: true,
-                          bounceable: true,
-                          testOnly: false
-                        });
-                        setRecipientAddress(friendlyAddress);
-                        setError(null);
-                        return;
-                      } catch {
-                        // Если не удалось преобразовать raw адрес, покажем ошибку
-                      }
-                    }
+                    console.error('Ошибка парсинга адреса:', error);
                     setError('Неверный формат адреса TON');
                   }
                 } else {
