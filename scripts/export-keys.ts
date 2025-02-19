@@ -19,7 +19,14 @@ async function exportKeys() {
     // Расшифровываем каждый ключ
     const exportData = wallets.map(wallet => {
       try {
-        const [ivHex, authTagHex, encryptedDataHex] = wallet.encryptedKey.split(':');
+        // Пропускаем кошельки без зашифрованного ключа
+        if (!wallet.encryptedKey) {
+          console.log(`Пропускаем кошелек ${wallet.address}: нет зашифрованного ключа`);
+          return null;
+        }
+
+        const encryptedKey = wallet.encryptedKey as string; // Утверждение типа
+        const [ivHex, authTagHex, encryptedDataHex] = encryptedKey.split(':');
         
         const iv = Buffer.from(ivHex, 'hex');
         const authTag = Buffer.from(authTagHex, 'hex');
@@ -48,7 +55,7 @@ async function exportKeys() {
         console.error(`Ошибка расшифровки для кошелька ${wallet.address}:`, error);
         return null;
       }
-    }).filter(Boolean);
+    }).filter(Boolean); // Удаляем null значения
 
     // Сохраняем в файл
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
