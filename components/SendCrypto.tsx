@@ -218,11 +218,11 @@ export default function SendCrypto({
 
             <TextInput
               label="Адрес получателя"
-              placeholder="UQ... или EQ..."
-              description="Введите адрес кошелька TON (начинается с UQ или EQ)"
+              placeholder="EQ... или UQ..."
+              description="Введите адрес кошелька TON"
               value={recipientAddress}
               onChange={(e) => {
-                const value = e.target.value;
+                const value = e.target.value.trim();
                 setRecipientAddress(value);
                 if (value) {
                   try {
@@ -235,8 +235,12 @@ export default function SendCrypto({
                       return;
                     }
 
-                    // Нормализуем адрес в user-friendly формат
-                    const normalizedAddress = parsedAddress.toString();
+                    // Нормализуем адрес
+                    const normalizedAddress = parsedAddress.toString({
+                      urlSafe: true,
+                      bounceable: true,
+                      testOnly: false
+                    });
                     
                     // Если адрес изменился после нормализации, обновляем поле
                     if (normalizedAddress !== value) {
@@ -245,6 +249,22 @@ export default function SendCrypto({
                     
                     setError(null);
                   } catch (error) {
+                    // Проверяем, может быть это raw адрес
+                    if (value.match(/^[0-9a-fA-F]{64}$/)) {
+                      try {
+                        const rawAddress = new Address(0, Buffer.from(value, 'hex'));
+                        const friendlyAddress = rawAddress.toString({
+                          urlSafe: true,
+                          bounceable: true,
+                          testOnly: false
+                        });
+                        setRecipientAddress(friendlyAddress);
+                        setError(null);
+                        return;
+                      } catch {
+                        // Если не удалось преобразовать raw адрес, покажем ошибку
+                      }
+                    }
                     setError('Неверный формат адреса TON');
                   }
                 } else {
