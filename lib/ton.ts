@@ -227,15 +227,62 @@ export async function getBalance(addressStr: string): Promise<{
 // Функция для получения баланса USDT
 async function getUSDTBalance(address: Address): Promise<number> {
   try {
-    const usdtContract = WalletContractV4.create({
-      publicKey: Buffer.alloc(32),
-      workchain: 0
+    console.log('=== Начало получения баланса USDT ===');
+    console.log('Адрес кошелька:', address.toString());
+    console.log('Адрес контракта USDT:', USDT_CONTRACT_ADDRESS);
+
+    // Получаем данные о jetton кошелька
+    const jettonWalletAddress = await retryWithDelay(async () => {
+      try {
+        const result = await client.runMethod(
+          Address.parse(USDT_CONTRACT_ADDRESS),
+          'get_wallet_address',
+          [{
+            type: 'slice',
+            cell: beginCell().storeAddress(address).endCell()
+          }]
+        );
+        console.log('Получен адрес jetton кошелька:', result);
+        return result;
+      } catch (error) {
+        console.error('Ошибка получения адреса jetton кошелька:', error);
+        throw error;
+      }
     });
-    const contract = client.open(usdtContract);
-    const result = await contract.getBalance();
-    return Number(fromNano(result));
+
+    if (!jettonWalletAddress) {
+      console.log('Jetton кошелек не найден, возвращаем 0');
+      return 0;
+    }
+
+    // Получаем баланс jetton кошелька
+    const balance = await retryWithDelay(async () => {
+      try {
+        const result = await client.runMethod(
+          Address.parse(jettonWalletAddress.toString()),
+          'get_wallet_data',
+          []
+        );
+        console.log('Получены данные jetton кошелька:', result);
+        return result;
+      } catch (error) {
+        console.error('Ошибка получения данных jetton кошелька:', error);
+        throw error;
+      }
+    });
+
+    if (!balance) {
+      console.log('Баланс не получен, возвращаем 0');
+      return 0;
+    }
+
+    const balanceValue = Number(fromNano(balance.toString()));
+    console.log('Баланс USDT:', balanceValue);
+    console.log('=== Получение баланса USDT завершено успешно ===');
+    
+    return balanceValue;
   } catch (error) {
-    console.error('Ошибка получения баланса USDT:', error);
+    console.error('=== Критическая ошибка получения баланса USDT ===', error);
     return 0;
   }
 }
@@ -319,22 +366,11 @@ export async function sendTON(
 ): Promise<boolean> {
   try {
     console.log('=== Начало отправки TON ===');
-    
-    // Базовые проверки
+    console.log('Параметры:', { fromAddressStr, toAddressStr, amount });
+
+    // Проверяем формат адреса
     if (!toAddressStr.startsWith('UQ')) {
       throw new Error('Неверный формат адреса получателя. Адрес должен начинаться с UQ');
-    }
-
-    // Проверяем и парсим адреса
-    const fromAddress = Address.parse(fromAddressStr);
-    const toAddress = Address.parse(toAddressStr);
-    
-    // Проверяем баланс с использованием retry
-    const { balance } = await retryWithDelay(() => getBalance(fromAddressStr));
-    const totalAmount = amount + COMMISSION_FEE;
-    
-    if (balance < totalAmount) {
-      throw new Error(`Недостаточно средств. Нужно: ${totalAmount} TON (включая комиссию ${COMMISSION_FEE} TON)`);
     }
 
     // Получаем данные кошелька
@@ -343,96 +379,121 @@ export async function sendTON(
       throw new Error('Кошелёк не найден');
     }
 
-    // Создаем и инициализируем кошелек
+    // Создаем кошелек
     const wallet = WalletContractV4.create({
       publicKey: Buffer.from(walletData.publicKey, 'hex'),
       workchain: 0
     });
 
-    const contract = client.open(wallet);
-    
-    // Получаем seqno с retry
-    const seqno = await retryWithDelay(() => contract.getSeqno());
+    // Проверяем баланс
+    const balance = await client.getBalance(wallet.address);
+    const balanceInTon = Number(fromNano(balance));
+    const totalAmount = amount + COMMISSION_FEE;
 
-    // Отправляем основной платеж с retry
-    await retryWithDelay(() => contract.sendTransfer({
+    console.log('Проверка баланса:', {
+      balance: balanceInTon,
+      required: totalAmount,
+      sufficient: balanceInTon >= totalAmount
+    });
+
+    if (balanceInTon < totalAmount) {
+      throw new Error(`Недостаточно средств. Нужно: ${totalAmount} TON (включая комиссию ${COMMISSION_FEE} TON)`);
+    }
+
+    // Подготавливаем транзакцию
+    const contract = client.open(wallet);
+    const seqno = await contract.getSeqno();
+
+    console.log('Отправка транзакции...');
+    
+    // Отправляем транзакцию
+    await contract.sendTransfer({
       secretKey: Buffer.from(walletData.secretKey, 'hex'),
-      seqno,
-      timeout: 60000,
+      seqno: seqno,
       messages: [
         internal({
-          to: toAddress,
+          to: Address.parse(toAddressStr),
           value: toNano(amount.toString()),
-          bounce: false,
-          body: beginCell().endCell()
+          bounce: false
         })
       ]
-    }));
+    });
 
-    // Ждем подтверждения основной транзакции
+    // Ждем подтверждения транзакции
+    let currentSeqno = seqno;
     let attempts = 0;
-    while (attempts < 10) {
-      try {
-        const transactions = await retryWithDelay(() => 
-          client.getTransactions(wallet.address, { limit: 1 })
-        );
-        if (transactions.length > 0 && transactions[0].now > Date.now() - 60000) {
-          break;
-        }
-      } catch (error) {
-        console.error('Ошибка при проверке транзакции:', error);
-      }
+    const maxAttempts = 10;
+
+    while (attempts < maxAttempts) {
+      console.log(`Проверка подтверждения транзакции (попытка ${attempts + 1}/${maxAttempts})...`);
       await delay(3000);
+
+      try {
+        const newSeqno = await contract.getSeqno();
+        if (newSeqno !== currentSeqno) {
+          console.log('Транзакция подтверждена');
+          
+          // Сохраняем в базу данных
+          const response = await fetch('/api/transactions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-telegram-init-data': initData
+            },
+            body: JSON.stringify({
+              type: 'WITHDRAWAL',
+              amount: amount,
+              address: toAddressStr,
+              hash: seqno.toString(),
+              fee: COMMISSION_FEE,
+              token: 'TON',
+              status: 'COMPLETED'
+            })
+          });
+
+          if (!response.ok) {
+            console.warn('Транзакция прошла, но не удалось сохранить в базу:', await response.json());
+          }
+
+          // Отправляем комиссию, если указан адрес
+          if (COMMISSION_ADDRESS) {
+            try {
+              const commissionSeqno = await contract.getSeqno();
+              await contract.sendTransfer({
+                secretKey: Buffer.from(walletData.secretKey, 'hex'),
+                seqno: commissionSeqno,
+                messages: [
+                  internal({
+                    to: Address.parse(COMMISSION_ADDRESS),
+                    value: toNano(COMMISSION_FEE.toString()),
+                    bounce: false
+                  })
+                ]
+              });
+              console.log('Комиссия отправлена');
+            } catch (error) {
+              console.warn('Не удалось отправить комиссию:', error);
+            }
+          }
+
+          console.log('=== Отправка TON завершена успешно ===');
+          return true;
+        }
+        currentSeqno = newSeqno;
+      } catch (error) {
+        console.warn(`Ошибка при проверке подтверждения (попытка ${attempts + 1}):`, error);
+      }
       attempts++;
     }
 
-    // Отправляем комиссию отдельной транзакцией
-    if (COMMISSION_ADDRESS) {
-      const newSeqno = await retryWithDelay(() => contract.getSeqno());
-      await retryWithDelay(() => contract.sendTransfer({
-        secretKey: Buffer.from(walletData.secretKey, 'hex'),
-        seqno: newSeqno,
-        timeout: 60000,
-        messages: [
-          internal({
-            to: Address.parse(COMMISSION_ADDRESS),
-            value: toNano(COMMISSION_FEE.toString()),
-            bounce: false,
-            body: beginCell().endCell()
-          })
-        ]
-      }));
-    }
-
-    // Сохраняем в базу данных
-    const response = await fetch('/api/transactions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-telegram-init-data': initData
-      },
-      body: JSON.stringify({
-        type: 'WITHDRAWAL',
-        amount: amount,
-        address: toAddressStr,
-        hash: seqno.toString(),
-        fee: COMMISSION_FEE,
-        token: 'TON',
-        status: 'COMPLETED'
-      })
+    throw new Error('Не удалось получить подтверждение транзакции');
+  } catch (error: any) {
+    console.error('=== Ошибка отправки TON ===', {
+      message: error.message,
+      stack: error.stack
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error('Ошибка сохранения транзакции: ' + JSON.stringify(errorData));
-    }
-
-    console.log('=== Отправка TON завершена успешно ===');
-    return true;
-  } catch (error) {
-    console.error('=== Ошибка отправки TON ===', error);
-    
-    // Пытаемся сохранить информацию об ошибке
+    // Сохраняем информацию об ошибке
     try {
       await fetch('/api/transactions', {
         method: 'POST',
@@ -448,7 +509,7 @@ export async function sendTON(
           fee: COMMISSION_FEE,
           token: 'TON',
           status: 'FAILED',
-          error: (error as Error).message
+          error: error.message
         })
       });
     } catch (e) {

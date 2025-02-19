@@ -2,6 +2,7 @@ import { Box, Text, Paper, Stack, TextInput, NumberInput, Button, Group, Segment
 import { IconSend } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
 import { sendTON, sendUSDT } from '../lib/ton';
+import { Address } from '@ton/ton';
 
 interface SendCryptoProps {
   balance: number;
@@ -63,6 +64,14 @@ export default function SendCrypto({
       setSending(true);
       setError(null);
       
+      console.log('=== Начало отправки транзакции ===');
+      console.log('Параметры:', {
+        type: selectedCrypto,
+        from: address,
+        to: recipientAddress,
+        amount: Number(amount)
+      });
+      
       if (selectedCrypto === 'TON') {
         await sendTON(
           address,
@@ -79,12 +88,38 @@ export default function SendCrypto({
         );
       }
 
+      console.log('=== Транзакция успешно отправлена ===');
+      
       if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.showAlert('Транзакция успешно отправлена');
+        window.Telegram.WebApp.showAlert(
+          `Транзакция успешно отправлена\n\nСумма: ${amount} ${selectedCrypto}\nПолучатель: ${recipientAddress}`
+        );
       }
       onBack();
-    } catch (error) {
-      setError((error as Error).message);
+    } catch (error: any) {
+      console.error('=== Ошибка отправки транзакции ===', {
+        message: error.message,
+        stack: error.stack
+      });
+      
+      // Форматируем сообщение об ошибке для пользователя
+      let errorMessage = error.message;
+      
+      if (errorMessage.includes('Недостаточно средств')) {
+        errorMessage = `Недостаточно ${selectedCrypto} для отправки. Проверьте баланс и сумму комиссии.`;
+      } else if (errorMessage.includes('Неверный формат адреса')) {
+        errorMessage = 'Неверный формат адреса получателя. Адрес должен начинаться с UQ или EQ.';
+      } else if (errorMessage.includes('429')) {
+        errorMessage = 'Слишком много запросов. Пожалуйста, подождите немного и попробуйте снова.';
+      } else if (errorMessage.includes('500')) {
+        errorMessage = 'Произошла ошибка на сервере. Пожалуйста, попробуйте позже.';
+      }
+      
+      setError(errorMessage);
+      
+      if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.showAlert('Ошибка: ' + errorMessage);
+      }
     } finally {
       setSending(false);
     }
@@ -183,14 +218,35 @@ export default function SendCrypto({
 
             <TextInput
               label="Адрес получателя"
-              placeholder="UQ..."
-              description="Адрес должен начинаться с UQ"
+              placeholder="UQ... или EQ..."
+              description="Введите адрес кошелька TON (начинается с UQ или EQ)"
               value={recipientAddress}
               onChange={(e) => {
                 const value = e.target.value;
                 setRecipientAddress(value);
-                if (value && !value.startsWith('UQ')) {
-                  setError('Адрес должен начинаться с UQ');
+                if (value) {
+                  try {
+                    // Пробуем распарсить адрес через TON SDK
+                    const parsedAddress = Address.parse(value);
+                    
+                    // Проверяем воркчейн (должен быть 0)
+                    if (parsedAddress.workChain !== 0) {
+                      setError('Адрес должен быть в воркчейне 0');
+                      return;
+                    }
+
+                    // Нормализуем адрес в user-friendly формат
+                    const normalizedAddress = parsedAddress.toString();
+                    
+                    // Если адрес изменился после нормализации, обновляем поле
+                    if (normalizedAddress !== value) {
+                      setRecipientAddress(normalizedAddress);
+                    }
+                    
+                    setError(null);
+                  } catch (error) {
+                    setError('Неверный формат адреса TON');
+                  }
                 } else {
                   setError(null);
                 }
