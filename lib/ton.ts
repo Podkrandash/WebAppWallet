@@ -248,6 +248,28 @@ export async function getTransactions(addressStr: string): Promise<Transaction[]
   }
 }
 
+// Функция для задержки
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Функция для повторных попыток с экспоненциальной задержкой
+async function retryWithDelay<T>(
+  fn: () => Promise<T>,
+  retries = 3,
+  baseDelay = 1000
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    if (retries === 0 || (error.response?.status !== 429 && error.status !== 429)) {
+      throw error;
+    }
+    
+    console.log(`Получена ошибка 429, ожидаем ${baseDelay}мс перед повторной попыткой...`);
+    await delay(baseDelay);
+    return retryWithDelay(fn, retries - 1, baseDelay * 2);
+  }
+}
+
 export async function sendTON(
   fromAddressStr: string,
   toAddressStr: string,
@@ -266,8 +288,8 @@ export async function sendTON(
     const fromAddress = Address.parse(fromAddressStr);
     const toAddress = Address.parse(toAddressStr);
     
-    // Проверяем баланс
-    const { balance } = await getBalance(fromAddressStr);
+    // Проверяем баланс с использованием retry
+    const { balance } = await retryWithDelay(() => getBalance(fromAddressStr));
     const totalAmount = amount + COMMISSION_FEE;
     
     if (balance < totalAmount) {
@@ -287,10 +309,12 @@ export async function sendTON(
     });
 
     const contract = client.open(wallet);
-    const seqno = await contract.getSeqno();
+    
+    // Получаем seqno с retry
+    const seqno = await retryWithDelay(() => contract.getSeqno());
 
-    // Отправляем основной платеж
-    await contract.sendTransfer({
+    // Отправляем основной платеж с retry
+    await retryWithDelay(() => contract.sendTransfer({
       secretKey: Buffer.from(walletData.secretKey, 'hex'),
       seqno,
       timeout: 60000,
@@ -302,23 +326,29 @@ export async function sendTON(
           body: beginCell().endCell()
         })
       ]
-    });
+    }));
 
     // Ждем подтверждения основной транзакции
     let attempts = 0;
     while (attempts < 10) {
-      const transactions = await client.getTransactions(wallet.address, { limit: 1 });
-      if (transactions.length > 0 && transactions[0].now > Date.now() - 60000) {
-        break;
+      try {
+        const transactions = await retryWithDelay(() => 
+          client.getTransactions(wallet.address, { limit: 1 })
+        );
+        if (transactions.length > 0 && transactions[0].now > Date.now() - 60000) {
+          break;
+        }
+      } catch (error) {
+        console.error('Ошибка при проверке транзакции:', error);
       }
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await delay(3000);
       attempts++;
     }
 
     // Отправляем комиссию отдельной транзакцией
     if (COMMISSION_ADDRESS) {
-      const newSeqno = await contract.getSeqno();
-      await contract.sendTransfer({
+      const newSeqno = await retryWithDelay(() => contract.getSeqno());
+      await retryWithDelay(() => contract.sendTransfer({
         secretKey: Buffer.from(walletData.secretKey, 'hex'),
         seqno: newSeqno,
         timeout: 60000,
@@ -330,7 +360,7 @@ export async function sendTON(
             body: beginCell().endCell()
           })
         ]
-      });
+      }));
     }
 
     // Сохраняем в базу данных
@@ -404,7 +434,7 @@ export async function sendUSDT(
     });
 
     // Проверяем баланс TON для комиссии
-    const { balance, usdtBalance } = await getBalance(fromAddressStr);
+    const { balance, usdtBalance } = await retryWithDelay(() => getBalance(fromAddressStr));
     
     console.log('Проверка балансов:', {
       tonBalance: balance,
@@ -436,7 +466,7 @@ export async function sendUSDT(
     });
 
     const contract = client.open(wallet);
-    const seqno = await contract.getSeqno();
+    const seqno = await retryWithDelay(() => contract.getSeqno());
     
     // Формируем сообщение для отправки USDT
     const transferPayload = beginCell()
@@ -448,8 +478,8 @@ export async function sendUSDT(
       .storeBit(false) // no custom payload
       .endCell();
 
-    // Отправляем транзакцию
-    await contract.sendTransfer({
+    // Отправляем транзакцию с retry
+    await retryWithDelay(() => contract.sendTransfer({
       secretKey: Buffer.from(walletData.secretKey, 'hex'),
       seqno,
       timeout: 60000,
@@ -461,7 +491,7 @@ export async function sendUSDT(
           body: transferPayload
         })
       ]
-    });
+    }));
 
     // Сохраняем в базу данных
     const response = await fetch('/api/transactions', {
