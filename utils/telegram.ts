@@ -11,11 +11,22 @@ interface TelegramUser {
 export async function verifyTelegramWebAppData(initData: string): Promise<TelegramUser | null> {
   try {
     // Добавляем отладочную информацию
-    console.log('Raw initData:', initData);
+    console.log('Проверка initData:', {
+      length: initData?.length,
+      hasHash: initData?.includes('hash='),
+      hasUser: initData?.includes('user='),
+      isValidFormat: /^[a-zA-Z0-9=&%]+$/.test(initData || '')
+    });
 
     // Проверяем, что initData не пустой
     if (!initData) {
-      console.error('InitData is empty');
+      console.error('InitData отсутствует');
+      return null;
+    }
+
+    // Проверяем базовый формат
+    if (!initData.includes('hash=') || !initData.includes('user=')) {
+      console.error('Отсутствуют обязательные параметры в initData');
       return null;
     }
 
@@ -23,7 +34,7 @@ export async function verifyTelegramWebAppData(initData: string): Promise<Telegr
     const hash = urlParams.get('hash');
     
     if (!hash) {
-      console.error('No hash in initData');
+      console.error('Отсутствует hash в initData');
       return null;
     }
 
@@ -34,23 +45,19 @@ export async function verifyTelegramWebAppData(initData: string): Promise<Telegr
     const params = Array.from(urlParams.entries())
       .sort(([a], [b]) => a.localeCompare(b));
 
-    console.log('Sorted params:', params);
+    console.log('Параметры для проверки:', params);
 
     // Создаем строку для проверки
     const dataCheckString = params
       .map(([key, value]) => `${key}=${value}`)
       .join('\n');
 
-    console.log('Data check string:', dataCheckString);
-
     // Получаем токен бота
     const botToken = process.env.NEXT_PUBLIC_TELEGRAM_BOT_TOKEN;
     if (!botToken) {
-      console.error('No bot token in env');
+      console.error('Отсутствует токен бота в переменных окружения');
       return null;
     }
-
-    console.log('Bot token found:', botToken.slice(0, 5) + '...');
 
     // Создаем секретный ключ
     const secretKey = crypto
@@ -64,21 +71,22 @@ export async function verifyTelegramWebAppData(initData: string): Promise<Telegr
       .update(dataCheckString)
       .digest('hex');
 
-    console.log('Hash comparison:', {
+    console.log('Сравнение хешей:', {
       calculated: calculatedHash,
-      received: hash
+      received: hash,
+      match: calculatedHash === hash
     });
 
     // Проверяем совпадение хешей
     if (calculatedHash !== hash) {
-      console.error('Hash mismatch');
+      console.error('Хеши не совпадают');
       return null;
     }
 
     // Получаем данные пользователя
     const user = urlParams.get('user');
     if (!user) {
-      console.error('No user data in initData');
+      console.error('Отсутствуют данные пользователя в initData');
       return null;
     }
 
@@ -88,18 +96,22 @@ export async function verifyTelegramWebAppData(initData: string): Promise<Telegr
       
       // Проверяем обязательные поля
       if (!userData.id || !userData.first_name) {
-        console.error('Missing required user fields:', userData);
+        console.error('Отсутствуют обязательные поля пользователя:', userData);
         return null;
       }
 
-      console.log('Verified user data:', userData);
+      console.log('Данные пользователя проверены:', {
+        id: userData.id,
+        username: userData.username || 'не указан'
+      });
+      
       return userData;
     } catch (parseError) {
-      console.error('Error parsing user data:', parseError);
+      console.error('Ошибка парсинга данных пользователя:', parseError);
       return null;
     }
   } catch (error) {
-    console.error('Error verifying Telegram data:', error);
+    console.error('Ошибка проверки данных Telegram:', error);
     return null;
   }
 } 

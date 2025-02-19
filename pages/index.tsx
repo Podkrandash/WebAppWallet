@@ -46,7 +46,7 @@ export default function Home() {
       // Проверяем доступность Telegram Web App
       if (!window.Telegram?.WebApp) {
         console.error('Telegram WebApp не найден');
-        setError('Приложение должно быть открыто из Telegram');
+        setError('Приложение должно быть открыто через Telegram бота @EarthWalletBot');
         setLoading(false);
         return;
       }
@@ -54,6 +54,15 @@ export default function Home() {
       // Настраиваем внешний вид
       const webapp = window.Telegram.WebApp;
       
+      // Проверяем initData
+      const webAppInitData = webapp.initData;
+      if (!webAppInitData || !webAppInitData.includes('hash=') || !webAppInitData.includes('user=')) {
+        console.error('Некорректные данные инициализации');
+        setError('Ошибка инициализации. Откройте приложение через Telegram бота @EarthWalletBot');
+        setLoading(false);
+        return;
+      }
+
       try {
         webapp.enableClosingConfirmation();
         webapp.setHeaderColor('#0A84FF');
@@ -74,15 +83,12 @@ export default function Home() {
         console.error('Ошибка вызова ready():', e);
       }
 
-      const webAppInitData = webapp.initData;
-      if (!webAppInitData) {
-        console.error('Отсутствуют данные инициализации');
-        setError('Отсутствуют данные инициализации');
-        setLoading(false);
-        return;
-      }
+      console.log('Получены данные инициализации:', {
+        length: webAppInitData.length,
+        hasHash: webAppInitData.includes('hash='),
+        hasUser: webAppInitData.includes('user=')
+      });
 
-      console.log('Получены данные инициализации:', webAppInitData);
       setInitData(webAppInitData);
 
       initWallet(webAppInitData)

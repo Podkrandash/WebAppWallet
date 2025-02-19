@@ -174,12 +174,28 @@ export async function sendTON(
 ): Promise<boolean> {
   try {
     console.log('=== Начало отправки TON ===');
+    
+    // Проверяем initData
+    if (!initData) {
+      throw new Error('initData отсутствует');
+    }
+
+    // Проверяем формат initData
+    console.log('Проверка initData:', {
+      length: initData.length,
+      firstChars: initData.slice(0, 20),
+      isBase64: /^[A-Za-z0-9+/=]+$/.test(initData),
+      containsQueryParams: initData.includes('?'),
+      containsHash: initData.includes('hash='),
+      containsUser: initData.includes('user=')
+    });
+
+    // Проверяем входные данные
     console.log('Проверка входных данных:', {
       fromAddress: fromAddressStr,
       toAddress: toAddressStr,
       amount: amount,
-      hasInitData: !!initData,
-      initDataLength: initData?.length
+      initDataLength: initData.length
     });
     
     // Проверяем формат адреса получателя
@@ -211,7 +227,7 @@ export async function sendTON(
       fromAddressStr,
       toAddressStr,
       amount,
-      initDataLength: initData?.length
+      initDataLength: initData.length
     });
 
     // Проверяем баланс
@@ -244,8 +260,8 @@ export async function sendTON(
 
     console.log('Подготовка к расшифровке ключей...');
     console.log('NEXT_PUBLIC_ENCRYPTION_KEY присутствует:', !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY);
-    console.log('Длина initData:', initData?.length);
-    console.log('Первые 12 символов initData:', initData?.slice(0, 12));
+    console.log('Длина initData:', initData.length);
+    console.log('Первые 12 символов initData:', initData.slice(0, 12));
 
     const keyPair = await decryptKeyPair(walletData, initData);
     console.log('Ключи расшифрованы:', {

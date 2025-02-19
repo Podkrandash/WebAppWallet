@@ -48,21 +48,17 @@ export default function SendCrypto({
     }
 
     try {
-      // Добавляем проверку initData
-      console.log('=== Проверка initData перед отправкой ===');
+      // Проверяем initData
       if (!initData) {
-        console.error('initData отсутствует');
         setError('Ошибка инициализации. Попробуйте перезапустить приложение');
         return;
       }
 
-      console.log('initData проверка:', {
-        length: initData.length,
-        firstChars: initData.slice(0, 20),
-        containsHash: initData.includes('hash='),
-        containsUser: initData.includes('user='),
-        isValidFormat: /^[a-zA-Z0-9=&%]+$/.test(initData)
-      });
+      // Проверяем формат initData
+      if (!initData.includes('hash=') || !initData.includes('user=')) {
+        setError('Ошибка инициализации Telegram WebApp. Попробуйте перезапустить приложение');
+        return;
+      }
 
       setSending(true);
       setError(null);
