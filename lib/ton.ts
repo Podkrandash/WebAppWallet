@@ -152,19 +152,34 @@ export async function getBalance(addressStr: string): Promise<{
   usdtBalance: number;
 }> {
   try {
-    console.log('Получаем баланс для адреса:', addressStr);
+    console.log('=== Начало получения баланса ===');
+    console.log('Адрес:', addressStr);
+    
     const address = Address.parse(addressStr);
     
-    // Получаем баланс TON
-    const balance = await client.getBalance(address);
+    // Получаем баланс TON с подробным логированием
+    console.log('Запрашиваем баланс TON...');
+    const balance = await retryWithDelay(async () => {
+      try {
+        const result = await client.getBalance(address);
+        console.log('Получен ответ от TON Center:', result);
+        return result;
+      } catch (error) {
+        console.error('Ошибка при запросе баланса TON:', error);
+        throw error;
+      }
+    });
+    
     const balanceInTon = Number(fromNano(balance));
     console.log('Баланс в TON:', balanceInTon);
     
-    // Получаем баланс USDT
+    // Получаем баланс USDT с подробным логированием
+    console.log('Запрашиваем баланс USDT...');
     const usdtBalance = await getUSDTBalance(address);
     console.log('Баланс в USDT:', usdtBalance);
     
-    // Получаем актуальный курс TON в рублях
+    // Получаем курс TON
+    console.log('Запрашиваем курс TON...');
     try {
       const response = await fetch(
         'https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=rub',
@@ -181,10 +196,10 @@ export async function getBalance(addressStr: string): Promise<{
         const tonPrice = data['the-open-network'].rub;
         console.log('Текущая цена TON:', tonPrice, 'RUB');
         
-        // Считаем стоимость баланса в рублях
         const balanceInRub = balanceInTon * tonPrice;
         console.log('Баланс в рублях:', balanceInRub);
         
+        console.log('=== Получение баланса завершено успешно ===');
         return {
           balance: balanceInTon,
           usdValue: balanceInRub.toFixed(2),
@@ -196,7 +211,7 @@ export async function getBalance(addressStr: string): Promise<{
       console.error('Ошибка получения курса:', error);
     }
     
-    // Если не удалось получить курс, возвращаем запасной вариант
+    console.log('=== Получение баланса завершено с запасным курсом ===');
     return {
       balance: balanceInTon,
       usdValue: '0.00',
@@ -204,7 +219,7 @@ export async function getBalance(addressStr: string): Promise<{
       usdtBalance
     };
   } catch (error) {
-    console.error('Ошибка получения баланса:', error);
+    console.error('=== Критическая ошибка получения баланса ===', error);
     throw error;
   }
 }
@@ -257,17 +272,43 @@ async function retryWithDelay<T>(
   retries = 3,
   baseDelay = 1000
 ): Promise<T> {
-  try {
-    return await fn();
-  } catch (error: any) {
-    if (retries === 0 || (error.response?.status !== 429 && error.status !== 429)) {
+  let lastError: any;
+  let attempt = 1;
+
+  while (retries >= 0) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      console.error(`Попытка ${attempt}, ошибка:`, {
+        status: error.response?.status || error.status,
+        message: error.message,
+        response: error.response?.data || error.response,
+        stack: error.stack
+      });
+
+      // Повторяем попытку только для ошибок 429 и 500
+      if (retries > 0 && (
+        error.response?.status === 429 || 
+        error.status === 429 ||
+        error.response?.status === 500 ||
+        error.status === 500
+      )) {
+        const delay = baseDelay * Math.pow(2, attempt - 1);
+        console.log(`Ожидаем ${delay}мс перед повторной попыткой ${attempt + 1}...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        retries--;
+        attempt++;
+        continue;
+      }
+
       throw error;
     }
-    
-    console.log(`Получена ошибка 429, ожидаем ${baseDelay}мс перед повторной попыткой...`);
-    await delay(baseDelay);
-    return retryWithDelay(fn, retries - 1, baseDelay * 2);
   }
+
+  // Если все попытки исчерпаны
+  console.error('Все попытки исчерпаны. Последняя ошибка:', lastError);
+  throw lastError;
 }
 
 export async function sendTON(
