@@ -314,8 +314,9 @@ async function decryptKeyPair(walletData: WalletData, initData: string): Promise
   try {
     console.log('=== Начало расшифровки ключей ===');
     
-    if (!process.env.NEXT_PUBLIC_ENCRYPTION_KEY) {
-      throw new Error('NEXT_PUBLIC_ENCRYPTION_KEY отсутствует в переменных окружения');
+    const encryptionKey = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY;
+    if (!encryptionKey) {
+      throw new Error('Ключ шифрования не найден в переменных окружения');
     }
 
     const encoder = new TextEncoder();
@@ -343,7 +344,7 @@ async function decryptKeyPair(walletData: WalletData, initData: string): Promise
     // Создаем ключ расшифровки
     const key = await crypto.subtle.importKey(
       'raw',
-      encoder.encode(process.env.NEXT_PUBLIC_ENCRYPTION_KEY),
+      encoder.encode(encryptionKey),
       { name: 'AES-GCM' },
       false,
       ['decrypt']
