@@ -175,71 +175,18 @@ export async function sendTON(
   try {
     console.log('=== Начало отправки TON ===');
     
-    // Проверяем initData
-    if (!initData) {
-      throw new Error('initData отсутствует');
-    }
-
-    // Проверяем формат initData
-    console.log('Проверка initData:', {
-      length: initData.length,
-      firstChars: initData.slice(0, 20),
-      isBase64: /^[A-Za-z0-9+/=]+$/.test(initData),
-      containsQueryParams: initData.includes('?'),
-      containsHash: initData.includes('hash='),
-      containsUser: initData.includes('user=')
-    });
-
-    // Проверяем входные данные
-    console.log('Проверка входных данных:', {
-      fromAddress: fromAddressStr,
-      toAddress: toAddressStr,
-      amount: amount,
-      initDataLength: initData.length
-    });
-    
-    // Проверяем формат адреса получателя
+    // Базовые проверки
     if (!toAddressStr.startsWith('UQ')) {
-      throw new Error('Неверный формат адреса. Адрес должен начинаться с UQ');
+      throw new Error('Неверный формат адреса получателя. Адрес должен начинаться с UQ');
     }
 
-    // Проверяем валидность адресов
-    try {
-      const fromAddress = Address.parse(fromAddressStr);
-      const toAddress = Address.parse(toAddressStr);
-      console.log('Адреса успешно распарсены:', {
-        from: fromAddress.toString(),
-        to: toAddress.toString()
-      });
-    } catch (error) {
-      console.error('Ошибка при парсинге адресов:', error);
-      throw new Error('Неверный формат адреса: ' + (error as Error).message);
-    }
-
-    console.log('Переменные окружения:', {
-      hasNextPublicEncryptionKey: !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY,
-      nextPublicEncryptionKeyLength: process.env.NEXT_PUBLIC_ENCRYPTION_KEY?.length,
-      hasToncenterApiKey: !!process.env.TONCENTER_API_KEY,
-      isDevelopment: process.env.NODE_ENV === 'development'
-    });
+    // Проверяем и парсим адреса
+    const fromAddress = Address.parse(fromAddressStr);
+    const toAddress = Address.parse(toAddressStr);
     
-    console.log('Параметры:', {
-      fromAddressStr,
-      toAddressStr,
-      amount,
-      initDataLength: initData.length
-    });
-
     // Проверяем баланс
     const { balance } = await getBalance(fromAddressStr);
     const totalAmount = amount + COMMISSION_FEE;
-    console.log('Проверка баланса:', {
-      balance,
-      amount,
-      commission: COMMISSION_FEE,
-      totalAmount,
-      sufficient: balance >= totalAmount
-    });
     
     if (balance < totalAmount) {
       throw new Error(`Недостаточно средств. Нужно: ${totalAmount} TON (включая комиссию ${COMMISSION_FEE} TON)`);
@@ -247,86 +194,67 @@ export async function sendTON(
 
     // Получаем данные кошелька
     const walletData = await localforage.getItem<WalletData>('wallet');
-    console.log('Данные кошелька получены:', {
-      hasWalletData: !!walletData,
-      address: walletData?.address,
-      hasPublicKey: !!walletData?.publicKey,
-      hasEncryptedKey: !!walletData?.encryptedKey
-    });
-
     if (!walletData) {
       throw new Error('Кошелёк не найден');
     }
 
-    console.log('Подготовка к расшифровке ключей...');
-    console.log('NEXT_PUBLIC_ENCRYPTION_KEY присутствует:', !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY);
-    console.log('Длина initData:', initData.length);
-    console.log('Первые 12 символов initData:', initData.slice(0, 12));
-
+    // Расшифровываем ключи
     const keyPair = await decryptKeyPair(walletData, initData);
-    console.log('Ключи расшифрованы:', {
-      hasPublicKey: !!keyPair.publicKey,
-      publicKeyLength: keyPair.publicKey.length,
-      hasSecretKey: !!keyPair.secretKey,
-      secretKeyLength: keyPair.secretKey.length
-    });
 
+    // Создаем и инициализируем кошелек
     const wallet = WalletContractV4.create({
       publicKey: keyPair.publicKey,
       workchain: 0
     });
-    console.log('Кошелек создан:', {
-      address: wallet.address.toString(),
-      workchain: wallet.address.workChain
-    });
 
     const contract = client.open(wallet);
     const seqno = await contract.getSeqno();
-    console.log('Получен seqno:', seqno);
-    
-    // Проверяем адрес комиссии
-    console.log('Проверка адреса комиссии:', {
-      hasCommissionAddress: !!COMMISSION_ADDRESS,
-      commissionAddress: COMMISSION_ADDRESS
-    });
 
-    // Отправляем платёж и комиссию
-    console.log('Подготовка транзакций...');
-    const messages = [
-      internal({
-        to: Address.parse(toAddressStr),
-        value: toNano(amount.toString()),
-        bounce: false,
-        body: beginCell().endCell()
-      })
-    ];
-
-    if (COMMISSION_ADDRESS) {
-      messages.push(
-        internal({
-          to: Address.parse(COMMISSION_ADDRESS),
-          value: toNano(COMMISSION_FEE.toString()),
-          bounce: false,
-          body: beginCell().endCell()
-        })
-      );
-    }
-
-    console.log('Отправка транзакций...', {
-      numberOfMessages: messages.length,
-      totalValue: amount + (COMMISSION_ADDRESS ? COMMISSION_FEE : 0)
-    });
-
+    // Отправляем основной платеж
     await contract.sendTransfer({
       secretKey: keyPair.secretKey,
       seqno,
       timeout: 60000,
-      messages
+      messages: [
+        internal({
+          to: toAddress,
+          value: toNano(amount.toString()),
+          bounce: false,
+          body: beginCell().endCell()
+        })
+      ]
     });
-    console.log('Транзакции отправлены успешно');
 
-    // Сохраняем в базу данных
-    console.log('Сохранение транзакции в БД...');
+    // Ждем подтверждения основной транзакции
+    let attempts = 0;
+    while (attempts < 10) {
+      const transactions = await client.getTransactions(wallet.address, { limit: 1 });
+      if (transactions.length > 0 && transactions[0].now > Date.now() - 60000) {
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      attempts++;
+    }
+
+    // Отправляем комиссию отдельной транзакцией
+    if (COMMISSION_ADDRESS) {
+      const newSeqno = await contract.getSeqno();
+      await contract.sendTransfer({
+        secretKey: keyPair.secretKey,
+        seqno: newSeqno,
+        timeout: 60000,
+        messages: [
+          internal({
+            to: Address.parse(COMMISSION_ADDRESS),
+            value: toNano(COMMISSION_FEE.toString()),
+            bounce: false,
+            body: beginCell().endCell()
+          })
+        ]
+      });
+    }
+
+    // Сохраняем в базу данных с правильными enum значениями
     const response = await fetch('/api/transactions', {
       method: 'POST',
       headers: {
@@ -334,25 +262,49 @@ export async function sendTON(
         'x-telegram-init-data': initData
       },
       body: JSON.stringify({
-        type: 'withdrawal',
+        type: 'WITHDRAWAL',
         amount: amount,
         address: toAddressStr,
         hash: seqno.toString(),
-        fee: COMMISSION_FEE
+        fee: COMMISSION_FEE,
+        token: 'TON',
+        status: 'COMPLETED'
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Ошибка сохранения транзакции:', errorData);
-    } else {
-      console.log('Транзакция сохранена в базе данных');
+      throw new Error('Ошибка сохранения транзакции: ' + JSON.stringify(errorData));
     }
 
     console.log('=== Отправка TON завершена успешно ===');
     return true;
   } catch (error) {
     console.error('=== Ошибка отправки TON ===', error);
+    
+    // Пытаемся сохранить информацию об ошибке
+    try {
+      await fetch('/api/transactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData
+        },
+        body: JSON.stringify({
+          type: 'WITHDRAWAL',
+          amount: amount,
+          address: toAddressStr,
+          hash: Date.now().toString(),
+          fee: COMMISSION_FEE,
+          token: 'TON',
+          status: 'FAILED',
+          error: (error as Error).message
+        })
+      });
+    } catch (e) {
+      console.error('Не удалось сохранить информацию об ошибке:', e);
+    }
+
     throw error;
   }
 }
