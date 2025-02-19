@@ -50,34 +50,88 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid Telegram init data' }, { status: 401 });
     }
 
-    const { address, publicKey } = await request.json();
+    const body = await request.json();
+    
+    // Если это запрос на создание кошелька
+    if (body.address && body.publicKey) {
+      // Создаем или находим пользователя
+      const user = await prisma.user.upsert({
+        where: { telegramId: telegramUser.id.toString() },
+        update: {
+          username: telegramUser.username,
+          firstName: telegramUser.first_name,
+          lastName: telegramUser.last_name
+        },
+        create: {
+          telegramId: telegramUser.id.toString(),
+          username: telegramUser.username,
+          firstName: telegramUser.first_name,
+          lastName: telegramUser.last_name
+        }
+      });
 
-    // Создаем или находим пользователя
-    const user = await prisma.user.upsert({
-      where: { telegramId: telegramUser.id.toString() },
-      update: {
-        username: telegramUser.username,
-        firstName: telegramUser.first_name,
-        lastName: telegramUser.last_name
-      },
-      create: {
-        telegramId: telegramUser.id.toString(),
-        username: telegramUser.username,
-        firstName: telegramUser.first_name,
-        lastName: telegramUser.last_name
+      // Создаем кошелек
+      const wallet = await prisma.wallet.create({
+        data: {
+          address: body.address,
+          publicKey: body.publicKey,
+          userId: user.id,
+          encryptedKey: ''
+        }
+      });
+
+      return NextResponse.json(wallet);
+    } 
+    // Если это запрос на создание транзакции
+    else if (body.type && body.amount) {
+      const { type, amount, address } = body;
+
+      if (!['deposit', 'withdrawal'].includes(type)) {
+        return NextResponse.json({ error: 'Invalid transaction type' }, { status: 400 });
       }
-    });
 
-    // Создаем кошелек
-    const wallet = await prisma.wallet.create({
-      data: {
-        address,
-        publicKey,
-        userId: user.id
+      const user = await prisma.user.findUnique({
+        where: { telegramId: telegramUser.id.toString() }
+      });
+
+      if (!user) {
+        return NextResponse.json({ error: 'User not found' }, { status: 404 });
       }
-    });
 
-    return NextResponse.json(wallet);
+      const transaction = await prisma.transaction.create({
+        data: {
+          id: `${Date.now()}-${user.id}`,
+          hash: `${Date.now()}-${user.id}`,
+          type,
+          amount,
+          address,
+          status: 'COMPLETED',
+          userId: user.id,
+          fee: 0,
+          timestamp: new Date()
+        }
+      });
+
+      // Обновляем баланс кошелька
+      const wallet = await prisma.wallet.findFirst({
+        where: { userId: user.id }
+      });
+
+      if (wallet) {
+        const newBalance = type === 'deposit' 
+          ? wallet.balance + amount 
+          : wallet.balance - amount;
+        
+        await prisma.wallet.update({
+          where: { id: wallet.id },
+          data: { balance: newBalance }
+        });
+      }
+
+      return NextResponse.json(transaction);
+    }
+
+    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   } catch (error) {
     console.error('Error in wallet API:', error);
     return NextResponse.json(
@@ -163,86 +217,5 @@ function encryptPrivateKey(privateKey: string, initData: string): string {
   } catch (error) {
     console.error('=== Ошибка шифрования ключа ===', error);
     throw error;
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const telegramInitData = request.headers.get('x-telegram-init-data');
-    if (!telegramInitData) {
-      console.error('No Telegram init data provided');
-      return NextResponse.json({ error: 'No Telegram init data provided' }, { status: 401 });
-    }
-
-    console.log('Проверка данных Telegram...');
-    const telegramUser = await verifyTelegramWebAppData(telegramInitData);
-    if (!telegramUser) {
-      console.error('Invalid Telegram init data');
-      return NextResponse.json({ error: 'Invalid Telegram init data' }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const { type, amount, address } = body;
-
-    console.log('Данные транзакции:', { type, amount, address });
-
-    // Проверяем тип операции
-    if (!['deposit', 'withdrawal'].includes(type)) {
-      console.error('Invalid transaction type:', type);
-      return NextResponse.json({ error: 'Invalid transaction type' }, { status: 400 });
-    }
-
-    console.log('Поиск пользователя:', telegramUser.id);
-    // Создаем транзакцию
-    const user = await prisma.user.findUnique({
-      where: { telegramId: telegramUser.id.toString() }
-    });
-
-    if (!user) {
-      console.error('User not found:', telegramUser.id);
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    console.log('Создание транзакции...');
-    const transaction = await prisma.transaction.create({
-      data: {
-        id: `${Date.now()}-${user.id}`,
-        hash: `${Date.now()}-${user.id}`,
-        type,
-        amount,
-        address,
-        status: 'completed',
-        userId: user.id,
-        fee: 0,
-        timestamp: new Date()
-      } as unknown as Prisma.TransactionUncheckedCreateInput
-    });
-    console.log('Транзакция создана:', transaction);
-
-    // Обновляем баланс кошелька
-    console.log('Обновление баланса кошелька...');
-    const wallet = await prisma.wallet.findFirst({
-      where: { userId: user.id }
-    });
-
-    if (wallet) {
-      const newBalance = type === 'deposit' 
-        ? wallet.balance + amount 
-        : wallet.balance - amount;
-      
-      await prisma.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: newBalance }
-      });
-      console.log('Баланс обновлен:', newBalance);
-    }
-
-    return NextResponse.json(transaction);
-  } catch (error) {
-    console.error('Error in wallet API:', error);
-    return NextResponse.json(
-      { error: 'Internal server error: ' + (error as Error).message },
-      { status: 500 }
-    );
   }
 } 

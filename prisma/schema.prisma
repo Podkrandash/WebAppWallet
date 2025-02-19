@@ -46,6 +46,7 @@ model Wallet {
   id           Int      @id @default(autoincrement())
   address      String   @unique
   publicKey    String
+  encryptedKey String?
   balance      Float    @default(0)
   usdtBalance  Float    @default(0)
   user         User     @relation(fields: [userId], references: [id])
