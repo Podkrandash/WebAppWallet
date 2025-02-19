@@ -313,75 +313,32 @@ export async function sendTON(
 async function decryptKeyPair(walletData: WalletData, initData: string): Promise<KeyPair> {
   try {
     console.log('=== Начало расшифровки ключей ===');
-    
-    const encryptionKey = process.env.NEXT_PUBLIC_ENCRYPTION_KEY || process.env.ENCRYPTION_KEY;
-    if (!encryptionKey) {
-      throw new Error('Ключ шифрования не найден в переменных окружения');
-    }
 
-    const encoder = new TextEncoder();
-    
-    // Разбираем зашифрованный ключ
-    const [ivHex, authTagHex, encryptedDataHex] = walletData.encryptedKey.split(':');
-    if (!ivHex || !authTagHex || !encryptedDataHex) {
-      throw new Error('Некорректный формат зашифрованного ключа');
-    }
-
-    console.log('Компоненты шифрования:', {
-      hasIV: !!ivHex,
-      ivLength: ivHex.length,
-      hasAuthTag: !!authTagHex,
-      authTagLength: authTagHex.length,
-      hasEncryptedData: !!encryptedDataHex,
-      encryptedDataLength: encryptedDataHex.length
-    });
-
-    // Преобразуем компоненты из hex
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const encryptedData = Buffer.from(encryptedDataHex, 'hex');
-
-    // Создаем ключ расшифровки
-    const key = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(encryptionKey),
-      { name: 'AES-GCM' },
-      false,
-      ['decrypt']
-    );
-
-    console.log('Ключ импортирован успешно');
-
-    // Объединяем зашифрованные данные с тегом аутентификации
-    const encryptedBuffer = Buffer.concat([encryptedData, authTag]);
-
-    // Расшифровываем
-    const decrypted = await crypto.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv: iv,
-        tagLength: 128
+    // Отправляем запрос на расшифровку
+    const response = await fetch('/api/decrypt', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-init-data': initData
       },
-      key,
-      encryptedBuffer
-    );
-
-    console.log('Данные расшифрованы успешно');
-
-    // Преобразуем расшифрованные данные в KeyPair
-    const secretKey = Buffer.from(decrypted);
-    const publicKey = Buffer.from(walletData.publicKey, 'hex');
-
-    console.log('Ключи подготовлены:', {
-      publicKeyLength: publicKey.length,
-      secretKeyLength: secretKey.length
+      body: JSON.stringify({
+        encryptedKey: walletData.encryptedKey
+      })
     });
 
-    console.log('=== Расшифровка ключей завершена успешно ===');
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Ошибка расшифровки');
+    }
+
+    const { secretKey } = await response.json();
+    if (!secretKey) {
+      throw new Error('Не удалось получить расшифрованный ключ');
+    }
 
     return {
-      publicKey,
-      secretKey
+      publicKey: Buffer.from(walletData.publicKey, 'hex'),
+      secretKey: Buffer.from(secretKey, 'hex')
     };
   } catch (error) {
     console.error('=== Ошибка расшифровки ключей ===', error);
