@@ -1,0 +1,53 @@
+{
+  "name": "webapp",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.11.0",
+    "@mantine/core": "^7.0.0",
+    "@mantine/hooks": "^7.0.0",
+    "@prisma/client": "^6.3.1",
+    "@tabler/icons-react": "^2.47.0",
+    "@ton/core": "^0.56.0",
+    "@ton/crypto": "^3.2.0",
+    "@ton/ton": "^13.11.0",
+    "@tonconnect/ui-react": "^2.0.0",
+    "@types/localforage": "^0.0.33",
+    "@types/next": "^8.0.7",
+    "@types/react-dom": "^19.0.3",
+    "buffer": "^6.0.3",
+    "localforage": "^1.10.0",
+    "next": "14.0.4",
+    "prisma": "^6.3.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "recharts": "^2.15.1",
+    "sequelize": "^6.35.1",
+    "sqlite3": "^5.1.6",
+    "ton-crypto": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "20.10.6",
+    "@types/react": "18.2.0",
+    "@types/react-dom": "18.2.0",
+    "@types/sequelize": "^4.28.20",
+    "eslint": "8.56.0",
+    "eslint-config-next": "14.0.4",
+    "postcss": "^8.4.35",
+    "postcss-preset-mantine": "^1.13.0",
+    "typescript": "5.3.3"
+  },
+  "resolutions": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "@types/react": "18.2.0",
+    "@types/react-dom": "18.2.0"
+  }
+}
