@@ -24,6 +24,7 @@
     "@types/next": "^8.0.7",
     "@types/react-dom": "^19.0.3",
     "buffer": "^6.0.3",
+    "html5-qrcode": "^2.3.8",
     "localforage": "^1.10.0",
     "next": "14.0.4",
     "react": "18.3.1",

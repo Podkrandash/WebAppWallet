@@ -5,6 +5,8 @@ import { sendTON } from '../lib/ton';
 import { TonDetails } from './TonDetails';
 import SendCrypto from './SendCrypto';
 import UsdtDetails from './UsdtDetails';
+import Exchange from './Exchange';
+import QrScanner from './QrScanner';
 
 interface Token {
   symbol: string;
@@ -36,9 +38,17 @@ export default function WalletCard({
   const [showTonDetails, setShowTonDetails] = useState(false);
   const [showUsdtDetails, setShowUsdtDetails] = useState(false);
   const [showSendCrypto, setShowSendCrypto] = useState(false);
+  const [showExchange, setShowExchange] = useState(false);
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   // Расчет общего баланса в рублях
   const totalBalanceRub = Number(usdValue.replace(/[^\d.-]/g, '')) + (usdtBalance * 100);
+
+  const handleQrScan = (address: string, amount?: number) => {
+    setShowQrScanner(false);
+    setShowSendCrypto(true);
+    // TODO: Передать отсканированные данные в компонент отправки
+  };
 
   if (showTonDetails) {
     return (
@@ -75,6 +85,27 @@ export default function WalletCard({
     );
   }
 
+  if (showExchange) {
+    return (
+      <Exchange
+        balance={balance}
+        usdtBalance={usdtBalance}
+        address={address}
+        initData={initData}
+        onBack={() => setShowExchange(false)}
+      />
+    );
+  }
+
+  if (showQrScanner) {
+    return (
+      <QrScanner
+        onScan={handleQrScan}
+        onBack={() => setShowQrScanner(false)}
+      />
+    );
+  }
+
   return (
     <Box style={{ height: '100%', position: 'relative' }}>
       <Stack gap="xl" pb={80} px="md">
@@ -105,7 +136,7 @@ export default function WalletCard({
 
         {/* Кнопки действий */}
         <SimpleGrid 
-          cols={{ base: 3, sm: 6 }}
+          cols={{ base: 4, sm: 4 }}
           spacing="md"
           pt={8}
         >
@@ -116,14 +147,10 @@ export default function WalletCard({
               size="xl"
               radius="xl"
               onClick={() => setShowSendCrypto(true)}
-              style={{
-                width: 'clamp(40px, 10vw, 48px)',
-                height: 'clamp(40px, 10vw, 48px)'
-              }}
             >
-              <IconSend style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
+              <IconSend size={24} />
             </ActionIcon>
-            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Отправить</Text>
+            <Text size="sm">Отправить</Text>
           </Stack>
 
           <Stack gap={4} align="center">
@@ -136,14 +163,10 @@ export default function WalletCard({
                 navigator.clipboard.writeText(address);
                 window.Telegram?.WebApp?.showAlert('Адрес скопирован');
               }}
-              style={{
-                width: 'clamp(40px, 10vw, 48px)',
-                height: 'clamp(40px, 10vw, 48px)'
-              }}
             >
-              <IconDownload style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
+              <IconDownload size={24} />
             </ActionIcon>
-            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Получить</Text>
+            <Text size="sm">Получить</Text>
           </Stack>
 
           <Stack gap={4} align="center">
@@ -152,14 +175,11 @@ export default function WalletCard({
               color="blue" 
               size="xl"
               radius="xl"
-              style={{
-                width: 'clamp(40px, 10vw, 48px)',
-                height: 'clamp(40px, 10vw, 48px)'
-              }}
+              onClick={() => setShowExchange(true)}
             >
-              <IconQrcode style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
+              <IconArrowsExchange size={24} />
             </ActionIcon>
-            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Сканировать</Text>
+            <Text size="sm">Обменять</Text>
           </Stack>
 
           <Stack gap={4} align="center">
@@ -168,46 +188,11 @@ export default function WalletCard({
               color="blue" 
               size="xl"
               radius="xl"
-              style={{
-                width: 'clamp(40px, 10vw, 48px)',
-                height: 'clamp(40px, 10vw, 48px)'
-              }}
+              onClick={() => setShowQrScanner(true)}
             >
-              <IconArrowsExchange style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
+              <IconQrcode size={24} />
             </ActionIcon>
-            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Обменять</Text>
-          </Stack>
-
-          <Stack gap={4} align="center">
-            <ActionIcon 
-              variant="light" 
-              color="blue" 
-              size="xl"
-              radius="xl"
-              style={{
-                width: 'clamp(40px, 10vw, 48px)',
-                height: 'clamp(40px, 10vw, 48px)'
-              }}
-            >
-              <IconCoin style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
-            </ActionIcon>
-            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Купить TON</Text>
-          </Stack>
-
-          <Stack gap={4} align="center">
-            <ActionIcon 
-              variant="light" 
-              color="blue" 
-              size="xl"
-              radius="xl"
-              style={{
-                width: 'clamp(40px, 10vw, 48px)',
-                height: 'clamp(40px, 10vw, 48px)'
-              }}
-            >
-              <IconLock style={{ width: 'clamp(18px, 5vw, 20px)', height: 'clamp(18px, 5vw, 20px)' }} />
-            </ActionIcon>
-            <Text style={{ fontSize: 'clamp(11px, 3vw, 14px)' }}>Застейкать</Text>
+            <Text size="sm">Сканировать</Text>
           </Stack>
         </SimpleGrid>
 
