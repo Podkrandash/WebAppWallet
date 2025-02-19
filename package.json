@@ -7,7 +7,8 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "export-keys": "ts-node scripts/export-keys.ts"
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",
@@ -42,6 +43,7 @@
     "eslint-config-next": "14.0.4",
     "postcss": "^8.4.35",
     "postcss-preset-mantine": "^1.13.0",
+    "ts-node": "^10.9.2",
     "typescript": "5.3.3"
   },
   "resolutions": {

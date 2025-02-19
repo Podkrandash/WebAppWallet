@@ -26,7 +26,7 @@ const USDT_CONTRACT_ADDRESS = 'EQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwiuA'
 interface WalletData {
   address: string;
   publicKey: string;
-  encryptedKey: string;
+  secretKey: string;  // Теперь храним приватный ключ локально
 }
 
 export interface Transaction {
@@ -43,19 +43,101 @@ export interface Transaction {
 
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
+    // Проверяем, есть ли уже кошелек в локальном хранилище
+    const existingWallet = await localforage.getItem<WalletData>('wallet');
+    
+    // Если есть кошелек с secretKey, значит он уже в новом формате
+    if (existingWallet && existingWallet.secretKey) {
+      return existingWallet;
+    }
+
+    // Пробуем получить существующий кошелек из базы
     const response = await fetch('/api/wallet', {
       headers: {
         'x-telegram-init-data': initData
       }
     });
-    
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Ошибка инициализации кошелька');
+
+    if (response.ok) {
+      const walletFromDb = await response.json();
+      
+      // Если нашли кошелек, создаем новую пару ключей
+      if (walletFromDb) {
+        console.log('=== Миграция существующего кошелька ===');
+        
+        // Генерируем новую пару ключей
+        const seed = await getSecureRandomBytes(32);
+        const keyPair = keyPairFromSeed(seed);
+
+        const walletData = {
+          address: walletFromDb.address,
+          publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
+          secretKey: Buffer.from(keyPair.secretKey).toString('hex')
+        };
+
+        // Обновляем публичный ключ в базе
+        const updateResponse = await fetch('/api/wallet', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-telegram-init-data': initData
+          },
+          body: JSON.stringify({
+            address: walletData.address,
+            publicKey: walletData.publicKey
+          })
+        });
+
+        if (!updateResponse.ok) {
+          throw new Error('Ошибка обновления кошелька');
+        }
+
+        // Сохраняем новые данные локально
+        await localforage.setItem('wallet', walletData);
+        console.log('=== Миграция кошелька завершена успешно ===');
+        
+        return walletData;
+      }
     }
 
-    const walletData = await response.json();
+    // Если кошелька нет ни локально, ни в базе - создаем новый
+    console.log('=== Создание нового кошелька ===');
+    const seed = await getSecureRandomBytes(32);
+    const keyPair = keyPairFromSeed(seed);
+
+    const wallet = WalletContractV4.create({
+      publicKey: keyPair.publicKey,
+      workchain: 0
+    });
+
+    const walletData = {
+      address: wallet.address.toString(),
+      publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
+      secretKey: Buffer.from(keyPair.secretKey).toString('hex')
+    };
+
+    // Сохраняем в базу только публичный ключ и адрес
+    const createResponse = await fetch('/api/wallet', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-telegram-init-data': initData
+      },
+      body: JSON.stringify({
+        address: walletData.address,
+        publicKey: walletData.publicKey
+      })
+    });
+
+    if (!createResponse.ok) {
+      const error = await createResponse.json();
+      throw new Error(error.error || 'Ошибка создания кошелька');
+    }
+
+    // Сохраняем полные данные локально
     await localforage.setItem('wallet', walletData);
+    console.log('=== Создание кошелька завершено успешно ===');
+    
     return walletData;
   } catch (error) {
     console.error('Ошибка инициализации кошелька:', error);
@@ -198,12 +280,9 @@ export async function sendTON(
       throw new Error('Кошелёк не найден');
     }
 
-    // Расшифровываем ключи
-    const keyPair = await decryptKeyPair(walletData, initData);
-
     // Создаем и инициализируем кошелек
     const wallet = WalletContractV4.create({
-      publicKey: keyPair.publicKey,
+      publicKey: Buffer.from(walletData.publicKey, 'hex'),
       workchain: 0
     });
 
@@ -212,7 +291,7 @@ export async function sendTON(
 
     // Отправляем основной платеж
     await contract.sendTransfer({
-      secretKey: keyPair.secretKey,
+      secretKey: Buffer.from(walletData.secretKey, 'hex'),
       seqno,
       timeout: 60000,
       messages: [
@@ -240,7 +319,7 @@ export async function sendTON(
     if (COMMISSION_ADDRESS) {
       const newSeqno = await contract.getSeqno();
       await contract.sendTransfer({
-        secretKey: keyPair.secretKey,
+        secretKey: Buffer.from(walletData.secretKey, 'hex'),
         seqno: newSeqno,
         timeout: 60000,
         messages: [
@@ -254,7 +333,7 @@ export async function sendTON(
       });
     }
 
-    // Сохраняем в базу данных с правильными enum значениями
+    // Сохраняем в базу данных
     const response = await fetch('/api/transactions', {
       method: 'POST',
       headers: {
@@ -309,44 +388,6 @@ export async function sendTON(
   }
 }
 
-// Вспомогательная функция для расшифровки ключей
-async function decryptKeyPair(walletData: WalletData, initData: string): Promise<KeyPair> {
-  try {
-    console.log('=== Начало расшифровки ключей ===');
-
-    // Отправляем запрос на расшифровку
-    const response = await fetch('/api/decrypt', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-telegram-init-data': initData
-      },
-      body: JSON.stringify({
-        encryptedKey: walletData.encryptedKey
-      })
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || 'Ошибка расшифровки');
-    }
-
-    const { secretKey } = await response.json();
-    if (!secretKey) {
-      throw new Error('Не удалось получить расшифрованный ключ');
-    }
-
-    return {
-      publicKey: Buffer.from(walletData.publicKey, 'hex'),
-      secretKey: Buffer.from(secretKey, 'hex')
-    };
-  } catch (error) {
-    console.error('=== Ошибка расшифровки ключей ===', error);
-    throw error;
-  }
-}
-
-// Функция отправки USDT
 export async function sendUSDT(
   fromAddressStr: string,
   toAddressStr: string,
@@ -364,19 +405,18 @@ export async function sendUSDT(
 
     // Проверяем баланс TON для комиссии
     const { balance, usdtBalance } = await getBalance(fromAddressStr);
-    const commissionInTon = 0.05;
     
     console.log('Проверка балансов:', {
       tonBalance: balance,
       usdtBalance,
       amount,
-      commission: commissionInTon,
-      sufficientTon: balance >= commissionInTon,
+      commission: COMMISSION_FEE,
+      sufficientTon: balance >= COMMISSION_FEE,
       sufficientUsdt: usdtBalance >= amount
     });
     
-    if (balance < commissionInTon) {
-      throw new Error(`Недостаточно TON для комиссии. Нужно: ${commissionInTon} TON`);
+    if (balance < COMMISSION_FEE) {
+      throw new Error(`Недостаточно TON для комиссии. Нужно: ${COMMISSION_FEE} TON`);
     }
 
     if (usdtBalance < amount) {
@@ -389,9 +429,9 @@ export async function sendUSDT(
       throw new Error('Кошелёк не найден');
     }
 
-    const keyPair = await decryptKeyPair(walletData, initData);
+    // Создаем и инициализируем кошелек
     const wallet = WalletContractV4.create({
-      publicKey: keyPair.publicKey,
+      publicKey: Buffer.from(walletData.publicKey, 'hex'),
       workchain: 0
     });
 
@@ -410,7 +450,7 @@ export async function sendUSDT(
 
     // Отправляем транзакцию
     await contract.sendTransfer({
-      secretKey: keyPair.secretKey,
+      secretKey: Buffer.from(walletData.secretKey, 'hex'),
       seqno,
       timeout: 60000,
       messages: [
@@ -431,24 +471,50 @@ export async function sendUSDT(
         'x-telegram-init-data': initData
       },
       body: JSON.stringify({
-        type: 'withdrawal',
+        type: 'WITHDRAWAL',
         amount: amount,
         address: toAddressStr,
         hash: seqno.toString(),
-        fee: commissionInTon,
-        token: 'USDT'
+        fee: COMMISSION_FEE,
+        token: 'USDT',
+        status: 'COMPLETED'
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Ошибка сохранения транзакции:', errorData);
+      throw new Error('Ошибка сохранения транзакции: ' + JSON.stringify(errorData));
     }
 
     console.log('=== Отправка USDT завершена успешно ===');
     return true;
   } catch (error) {
     console.error('=== Ошибка отправки USDT ===', error);
+    
+    // Пытаемся сохранить информацию об ошибке
+    try {
+      await fetch('/api/transactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData
+        },
+        body: JSON.stringify({
+          type: 'WITHDRAWAL',
+          amount: amount,
+          address: toAddressStr,
+          hash: Date.now().toString(),
+          fee: COMMISSION_FEE,
+          token: 'USDT',
+          status: 'FAILED',
+          error: (error as Error).message
+        })
+      });
+    } catch (e) {
+      console.error('Не удалось сохранить информацию об ошибке:', e);
+    }
+    
     throw error;
   }
 } 
