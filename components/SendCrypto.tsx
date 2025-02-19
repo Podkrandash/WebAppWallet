@@ -48,6 +48,22 @@ export default function SendCrypto({
     }
 
     try {
+      // Добавляем проверку initData
+      console.log('=== Проверка initData перед отправкой ===');
+      if (!initData) {
+        console.error('initData отсутствует');
+        setError('Ошибка инициализации. Попробуйте перезапустить приложение');
+        return;
+      }
+
+      console.log('initData проверка:', {
+        length: initData.length,
+        firstChars: initData.slice(0, 20),
+        containsHash: initData.includes('hash='),
+        containsUser: initData.includes('user='),
+        isValidFormat: /^[a-zA-Z0-9=&%]+$/.test(initData)
+      });
+
       setSending(true);
       setError(null);
       

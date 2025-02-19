@@ -174,15 +174,36 @@ export async function sendTON(
 ): Promise<boolean> {
   try {
     console.log('=== Начало отправки TON ===');
+    console.log('Проверка входных данных:', {
+      fromAddress: fromAddressStr,
+      toAddress: toAddressStr,
+      amount: amount,
+      hasInitData: !!initData,
+      initDataLength: initData?.length
+    });
     
     // Проверяем формат адреса получателя
     if (!toAddressStr.startsWith('UQ')) {
       throw new Error('Неверный формат адреса. Адрес должен начинаться с UQ');
     }
 
+    // Проверяем валидность адресов
+    try {
+      const fromAddress = Address.parse(fromAddressStr);
+      const toAddress = Address.parse(toAddressStr);
+      console.log('Адреса успешно распарсены:', {
+        from: fromAddress.toString(),
+        to: toAddress.toString()
+      });
+    } catch (error) {
+      console.error('Ошибка при парсинге адресов:', error);
+      throw new Error('Неверный формат адреса: ' + (error as Error).message);
+    }
+
     console.log('Переменные окружения:', {
       hasNextPublicEncryptionKey: !!process.env.NEXT_PUBLIC_ENCRYPTION_KEY,
       nextPublicEncryptionKeyLength: process.env.NEXT_PUBLIC_ENCRYPTION_KEY?.length,
+      hasToncenterApiKey: !!process.env.TONCENTER_API_KEY,
       isDevelopment: process.env.NODE_ENV === 'development'
     });
     
