@@ -116,21 +116,13 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
         let publicKey = walletFromDb.publicKey;
         let secretKey = walletFromDb.privateKey;
 
-        // Убеждаемся, что ключи в правильном формате (hex)
-        if (!publicKey.match(/^[0-9a-fA-F]{64}$/)) {
-          throw new Error('Неверный формат публичного ключа');
-        }
-        if (!secretKey.match(/^[0-9a-fA-F]{64}$/)) {
-          throw new Error('Неверный формат приватного ключа');
-        }
-
-        const walletData = {
-          address: walletFromDb.address,
-          publicKey: publicKey,
-          secretKey: secretKey
-        };
-
-        // Проверяем валидность ключей
+        console.log('Форматы ключей:', {
+          publicKeyLength: publicKey?.length,
+          secretKeyLength: secretKey?.length,
+          publicKeyFormat: typeof publicKey,
+          secretKeyFormat: typeof secretKey
+        });
+        
         try {
           const keyPair = {
             publicKey: Buffer.from(publicKey, 'hex'),
@@ -138,16 +130,22 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
           };
           const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
           console.log('Кошелек успешно создан с существующими ключами');
+
+          const walletData = {
+            address: walletFromDb.address,
+            publicKey: publicKey,
+            secretKey: secretKey
+          };
+
+          // Сохраняем в локальное хранилище для кэширования
+          await localforage.setItem('wallet', walletData);
+          console.log('=== Кошелек успешно получен и сохранен в кэш ===');
+          
+          return walletData;
         } catch (e) {
           console.error('Ошибка проверки ключей:', e);
-          throw new Error('Неверный формат ключей');
+          throw new Error('Неверный формат ключей: ' + (e instanceof Error ? e.message : 'Неизвестная ошибка'));
         }
-
-        // Сохраняем в локальное хранилище для кэширования
-        await localforage.setItem('wallet', walletData);
-        console.log('=== Кошелек успешно получен и сохранен в кэш ===');
-        
-        return walletData;
       }
 
       // Если кошелька нет - создаем новый
