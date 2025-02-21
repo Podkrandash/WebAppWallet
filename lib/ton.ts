@@ -74,15 +74,7 @@ interface TransactionResult {
 
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
-    // Проверяем, есть ли уже кошелек в локальном хранилище
-    const existingWallet = await localforage.getItem<WalletData>('wallet');
-    
-    // Если есть кошелек с secretKey, значит он уже в новом формате
-    if (existingWallet && existingWallet.secretKey) {
-      return existingWallet;
-    }
-
-    // Пробуем получить существующий кошелек из базы
+    // Получаем данные кошелька из базы
     const response = await fetch('/api/wallet', {
       headers: {
         'x-telegram-init-data': initData
@@ -92,84 +84,66 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
     if (response.ok) {
       const walletFromDb = await response.json();
       
-      // Если нашли кошелек, создаем новую пару ключей
+      // Если нашли существующий кошелек
       if (walletFromDb) {
-        console.log('=== Миграция существующего кошелька ===');
+        console.log('=== Получение существующего кошелька ===');
         
-        // Генерируем новую пару ключей
-        const seed = await getSecureRandomBytes(32);
-        const keyPair = keyPairFromSeed(seed);
-
         const walletData = {
           address: walletFromDb.address,
-          publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
-          secretKey: Buffer.from(keyPair.secretKey).toString('hex')
+          publicKey: walletFromDb.publicKey,
+          secretKey: walletFromDb.privateKey // Используем приватный ключ из БД
         };
 
-        // Обновляем публичный ключ в базе
-        const updateResponse = await fetch('/api/wallet', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-telegram-init-data': initData
-          },
-          body: JSON.stringify({
-            address: walletData.address,
-            publicKey: walletData.publicKey
-          })
-        });
-
-        if (!updateResponse.ok) {
-          throw new Error('Ошибка обновления кошелька');
-        }
-
-        // Сохраняем новые данные локально
+        // Сохраняем в локальное хранилище для кэширования
         await localforage.setItem('wallet', walletData);
-        console.log('=== Миграция кошелька завершена успешно ===');
+        console.log('=== Кошелек успешно получен ===');
         
         return walletData;
       }
+
+      // Если кошелька нет - создаем новый
+      console.log('=== Создание нового кошелька ===');
+      const seed = await getSecureRandomBytes(32);
+      const keyPair = keyPairFromSeed(seed);
+
+      const wallet = WalletContractV4.create({
+        publicKey: keyPair.publicKey,
+        workchain: 0
+      });
+
+      const walletData = {
+        address: wallet.address.toString(),
+        publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
+        secretKey: Buffer.from(keyPair.secretKey).toString('hex')
+      };
+
+      // Сохраняем все данные в базу
+      const createResponse = await fetch('/api/wallet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData
+        },
+        body: JSON.stringify({
+          address: walletData.address,
+          publicKey: walletData.publicKey,
+          privateKey: walletData.secretKey // Сохраняем приватный ключ
+        })
+      });
+
+      if (!createResponse.ok) {
+        const error = await createResponse.json();
+        throw new Error(error.error || 'Ошибка создания кошелька');
+      }
+
+      // Сохраняем в локальное хранилище для кэширования
+      await localforage.setItem('wallet', walletData);
+      console.log('=== Создание кошелька завершено успешно ===');
+      
+      return walletData;
     }
 
-    // Если кошелька нет ни локально, ни в базе - создаем новый
-    console.log('=== Создание нового кошелька ===');
-    const seed = await getSecureRandomBytes(32);
-    const keyPair = keyPairFromSeed(seed);
-
-    const wallet = WalletContractV4.create({
-      publicKey: keyPair.publicKey,
-      workchain: 0
-    });
-
-    const walletData = {
-      address: wallet.address.toString(),
-      publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
-      secretKey: Buffer.from(keyPair.secretKey).toString('hex')
-    };
-
-    // Сохраняем в базу только публичный ключ и адрес
-    const createResponse = await fetch('/api/wallet', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-telegram-init-data': initData
-      },
-      body: JSON.stringify({
-        address: walletData.address,
-        publicKey: walletData.publicKey
-      })
-    });
-
-    if (!createResponse.ok) {
-      const error = await createResponse.json();
-      throw new Error(error.error || 'Ошибка создания кошелька');
-    }
-
-    // Сохраняем полные данные локально
-    await localforage.setItem('wallet', walletData);
-    console.log('=== Создание кошелька завершено успешно ===');
-    
-    return walletData;
+    throw new Error('Не удалось получить данные кошелька');
   } catch (error) {
     console.error('Ошибка инициализации кошелька:', error);
     throw error;
@@ -711,25 +685,43 @@ export async function swapCrypto(
     console.log('=== Начало обмена криптовалюты ===', { fromToken, toToken, amount });
 
     // Получаем данные кошелька
+    console.log('Получаем данные кошелька...');
     const walletData = await localforage.getItem<WalletData>('wallet');
     if (!walletData) throw new Error('Кошелёк не найден');
+    console.log('Данные кошелька получены');
 
     // Создаем кошелек
+    console.log('Создаем экземпляр кошелька...');
     const wallet = WalletContractV4.create({
       publicKey: Buffer.from(walletData.publicKey, 'hex'),
       workchain: 0
     });
+    console.log('Кошелек создан:', wallet.address.toString());
 
     // Определяем пул для свапа
+    console.log('Определяем адрес пула...');
     const poolAddress = getPoolAddress(fromToken, toToken);
     if (!poolAddress) throw new Error('Неподдерживаемая пара токенов');
+    console.log('Адрес пула:', poolAddress);
 
     // Получаем данные пула
+    console.log('Получаем данные пула...');
     const poolData = await getStonfiPoolData(poolAddress);
+    console.log('Данные пула получены:', {
+      tokenBalance: fromNano(poolData.tokenBalance.toString()),
+      tonBalance: fromNano(poolData.tonBalance.toString())
+    });
     
     // Проверяем балансы
+    console.log('Проверяем балансы...');
     const balances = await getBalance(fromAddressStr);
     const fromBalance = getTokenBalance(balances, fromToken);
+    console.log('Текущие балансы:', {
+      ton: balances.balance,
+      usdt: balances.usdtBalance,
+      earth: balances.earthBalance,
+      fromBalance
+    });
     
     // Проверяем достаточность средств
     if (fromToken === 'TON') {

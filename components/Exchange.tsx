@@ -50,9 +50,20 @@ export default function Exchange({
       setExchanging(true);
       setError(null);
 
+      console.log('=== Начало обмена ===', {
+        address,
+        amount,
+        fromToken: fromCrypto,
+        toToken: fromCrypto === 'TON' ? 'USDT' : 'TON',
+        initData: initData?.slice(0, 50) + '...' // логируем только начало initData для безопасности
+      });
+
       const fromToken = fromCrypto;
       const toToken = fromCrypto === 'TON' ? 'USDT' : 'TON';
-      await swapCrypto(address, Number(amount), fromToken, toToken, initData);
+      
+      const result = await swapCrypto(address, Number(amount), fromToken, toToken, initData);
+      
+      console.log('=== Результат обмена ===', result);
 
       if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.showAlert(

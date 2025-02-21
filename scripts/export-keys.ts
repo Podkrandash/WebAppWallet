@@ -19,40 +19,20 @@ async function exportKeys() {
     // Расшифровываем каждый ключ
     const exportData = wallets.map(wallet => {
       try {
-        // Пропускаем кошельки без зашифрованного ключа
-        if (!wallet.encryptedKey) {
-          console.log(`Пропускаем кошелек ${wallet.address}: нет зашифрованного ключа`);
+        if (!wallet.privateKey) {
+          console.log(`Пропускаем кошелек ${wallet.address}: нет приватного ключа`);
           return null;
         }
-
-        const encryptedKey = wallet.encryptedKey as string; // Утверждение типа
-        const [ivHex, authTagHex, encryptedDataHex] = encryptedKey.split(':');
-        
-        const iv = Buffer.from(ivHex, 'hex');
-        const authTag = Buffer.from(authTagHex, 'hex');
-        const encryptedData = Buffer.from(encryptedDataHex, 'hex');
-
-        const decipher = crypto.createDecipheriv(
-          'aes-256-gcm', 
-          Buffer.from(encryptionKey, 'hex'), 
-          iv
-        );
-        
-        decipher.setAuthTag(authTag);
-        const decrypted = Buffer.concat([
-          decipher.update(encryptedData),
-          decipher.final()
-        ]);
 
         return {
           telegramId: wallet.user.telegramId,
           username: wallet.user.username,
           address: wallet.address,
           publicKey: wallet.publicKey,
-          secretKey: decrypted.toString('hex')
+          secretKey: wallet.privateKey
         };
       } catch (error) {
-        console.error(`Ошибка расшифровки для кошелька ${wallet.address}:`, error);
+        console.error(`Ошибка экспорта для кошелька ${wallet.address}:`, error);
         return null;
       }
     }).filter(Boolean); // Удаляем null значения

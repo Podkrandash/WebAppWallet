@@ -47,7 +47,7 @@ model Wallet {
   id           Int      @id @default(autoincrement())
   address      String   @unique
   publicKey    String
-  encryptedKey String?
+  privateKey   String   // Добавляем поле для приватного ключа
   balance      Float    @default(0)
   usdtBalance  Float    @default(0)
   earthBalance Float    @default(0)
