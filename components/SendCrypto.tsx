@@ -106,8 +106,9 @@ export default function SendCrypto({
 
   const currentBalance = selectedCrypto === 'TON' ? balance : usdtBalance;
   const networkFee = 0.05;
-  const dexFee = 0.01;
-  const totalFee = networkFee + dexFee;
+  
+  // Максимальная доступная сумма для отправки
+  const maxAvailableAmount = Math.max(0, currentBalance - networkFee);
 
   return (
     <Box style={{ 
@@ -173,7 +174,7 @@ export default function SendCrypto({
               <Stack gap={4} align="center">
                 <Text size="xl" fw={700}>{selectedCrypto}</Text>
                 <Text size="sm" c="dimmed">
-                  Доступно: {(currentBalance - (selectedCrypto === 'TON' ? totalFee : 0)).toFixed(selectedCrypto === 'TON' ? 2 : 6)} {selectedCrypto}
+                  Доступно: {maxAvailableAmount.toFixed(selectedCrypto === 'TON' ? 2 : 6)} {selectedCrypto}
                 </Text>
               </Stack>
             </Group>
@@ -227,7 +228,7 @@ export default function SendCrypto({
               value={amount}
               onChange={(value) => setAmount(typeof value === 'string' ? parseFloat(value) || 0 : value)}
               min={0}
-              max={currentBalance - (selectedCrypto === 'TON' ? totalFee : 0)}
+              max={maxAvailableAmount}
               decimalScale={selectedCrypto === 'TON' ? 2 : 6}
               hideControls
               error={error && !amount ? 'Введите сумму' : null}
@@ -263,8 +264,6 @@ export default function SendCrypto({
             <Stack gap="md">
               <Text size="sm" c="dimmed" ta="center">
                 Комиссия сети: {networkFee} TON
-                <br />
-                Комиссия DEX: {dexFee} TON
               </Text>
 
               <Button

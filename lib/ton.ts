@@ -411,13 +411,14 @@ export async function sendTON(
 
     console.log('Проверка баланса:', {
       balance: balanceInTon,
-      required: totalAmount,
-      networkFee,
+      amount: amount,
+      networkFee: networkFee,
+      totalRequired: totalAmount,
       sufficient: balanceInTon >= totalAmount
     });
 
     if (balanceInTon < totalAmount) {
-      throw new Error(`Недостаточно TON. Нужно: ${totalAmount} TON (включая комиссию сети ${networkFee} TON)`);
+      throw new Error(`Недостаточно TON. Нужно: ${amount} TON + ${networkFee} TON комиссия = ${totalAmount} TON`);
     }
 
     // Подготавливаем транзакцию
@@ -576,21 +577,18 @@ export async function sendUSDT(
     const { balance, usdtBalance } = await retryWithDelay(() => getBalance(fromAddressStr));
     
     const networkFee = 0.05; // Комиссия сети
-    const dexFee = 0.01; // Комиссия DEX
-    const totalFee = networkFee + dexFee;
     
     console.log('Проверка балансов:', {
       tonBalance: balance,
       usdtBalance,
       amount,
       networkFee,
-      dexFee,
-      sufficientTon: balance >= totalFee,
+      sufficientTon: balance >= networkFee,
       sufficientUsdt: usdtBalance >= amount
     });
     
-    if (balance < totalFee) {
-      throw new Error(`Недостаточно TON для комиссии. Нужно: ${totalFee} TON (сеть: ${networkFee} TON, DEX: ${dexFee} TON)`);
+    if (balance < networkFee) {
+      throw new Error(`Недостаточно TON для комиссии. Нужно: ${networkFee} TON`);
     }
 
     if (usdtBalance < amount) {
@@ -650,7 +648,7 @@ export async function sendUSDT(
         amount: amount,
         address: normalizedAddress,
         hash: seqno.toString(),
-        fee: totalFee,
+        fee: networkFee,
         token: 'USDT',
         status: 'COMPLETED'
       })
