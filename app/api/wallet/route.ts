@@ -8,27 +8,46 @@ import { Prisma } from '@prisma/client';
 
 export async function GET(request: Request) {
   try {
+    console.log('=== GET /api/wallet ===');
     const telegramInitData = request.headers.get('x-telegram-init-data');
     if (!telegramInitData) {
+      console.log('Отсутствует x-telegram-init-data');
       return NextResponse.json({ error: 'No Telegram init data provided' }, { status: 401 });
     }
 
+    console.log('Проверяем данные Telegram...');
     const telegramUser = await verifyTelegramWebAppData(telegramInitData);
     if (!telegramUser) {
+      console.log('Неверные данные Telegram');
       return NextResponse.json({ error: 'Invalid Telegram init data' }, { status: 401 });
     }
+    console.log('Данные пользователя:', {
+      id: telegramUser.id,
+      username: telegramUser.username
+    });
 
     // Находим пользователя и его кошелек
+    console.log('Ищем пользователя в БД...');
     const user = await prisma.user.findUnique({
       where: { telegramId: telegramUser.id.toString() },
       include: { wallets: true }
     });
+    console.log('Результат поиска пользователя:', {
+      found: !!user,
+      hasWallets: user?.wallets?.length ?? 0 > 0
+    });
 
-    if (!user || user.wallets.length === 0) {
-      return NextResponse.json(null);
+    if (!user || !user.wallets || user.wallets.length === 0) {
+      console.log('Кошелек не найден, возвращаем null для создания нового');
+      return NextResponse.json(null, { status: 200 }); // Важно вернуть 200, а не 404
     }
 
-    return NextResponse.json(user.wallets[0]);
+    console.log('Возвращаем данные кошелька');
+    return NextResponse.json({
+      address: user.wallets[0].address,
+      publicKey: user.wallets[0].publicKey,
+      privateKey: user.wallets[0].privateKey
+    });
   } catch (error) {
     console.error('Error in wallet API:', error);
     return NextResponse.json(

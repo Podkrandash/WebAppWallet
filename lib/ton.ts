@@ -75,9 +75,13 @@ interface TransactionResult {
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
     console.log('=== Начало инициализации кошелька ===');
-    console.log('Получаем данные кошелька из базы...');
+    if (!initData) {
+      console.error('initData отсутствует');
+      throw new Error('initData отсутствует');
+    }
+    console.log('initData длина:', initData.length);
     
-    // Получаем данные кошелька из базы
+    console.log('Получаем данные кошелька из базы...');
     const response = await fetch('/api/wallet', {
       headers: {
         'x-telegram-init-data': initData
@@ -85,9 +89,18 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
     });
     
     console.log('Статус ответа:', response.status);
+    const responseText = await response.text();
+    console.log('Тело ответа:', responseText);
+    
+    let walletFromDb;
+    try {
+      walletFromDb = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Ошибка парсинга JSON:', e);
+      throw new Error('Ошибка парсинга ответа сервера');
+    }
     
     if (response.ok) {
-      const walletFromDb = await response.json();
       console.log('Получены данные из БД:', {
         hasWallet: !!walletFromDb,
         address: walletFromDb?.address,
@@ -146,11 +159,12 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       });
 
       console.log('Статус создания кошелька:', createResponse.status);
+      const createResponseText = await createResponse.text();
+      console.log('Ответ создания кошелька:', createResponseText);
       
       if (!createResponse.ok) {
-        const error = await createResponse.json();
-        console.error('Ошибка создания кошелька:', error);
-        throw new Error(error.error || 'Ошибка создания кошелька');
+        console.error('Ошибка создания кошелька:', createResponseText);
+        throw new Error('Ошибка создания кошелька: ' + createResponseText);
       }
 
       // Сохраняем в локальное хранилище для кэширования
@@ -160,7 +174,7 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       return walletData;
     }
 
-    throw new Error('Не удалось получить данные кошелька');
+    throw new Error(`Не удалось получить данные кошелька: ${response.status} ${responseText}`);
   } catch (error) {
     console.error('Ошибка инициализации кошелька:', error);
     throw error;
