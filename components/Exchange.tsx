@@ -50,8 +50,9 @@ export default function Exchange({
       setExchanging(true);
       setError(null);
 
-      const isTonToToken = fromCrypto === 'TON';
-      await swapCrypto(address, Number(amount), isTonToToken, initData);
+      const fromToken = fromCrypto;
+      const toToken = fromCrypto === 'TON' ? 'USDT' : 'TON';
+      await swapCrypto(address, Number(amount), fromToken, toToken, initData);
 
       if (window.Telegram?.WebApp) {
         window.Telegram.WebApp.showAlert(
