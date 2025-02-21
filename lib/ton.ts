@@ -74,15 +74,26 @@ interface TransactionResult {
 
 export async function initWallet(initData: string): Promise<WalletData | null> {
   try {
+    console.log('=== Начало инициализации кошелька ===');
+    console.log('Получаем данные кошелька из базы...');
+    
     // Получаем данные кошелька из базы
     const response = await fetch('/api/wallet', {
       headers: {
         'x-telegram-init-data': initData
       }
     });
-
+    
+    console.log('Статус ответа:', response.status);
+    
     if (response.ok) {
       const walletFromDb = await response.json();
+      console.log('Получены данные из БД:', {
+        hasWallet: !!walletFromDb,
+        address: walletFromDb?.address,
+        hasPublicKey: !!walletFromDb?.publicKey,
+        hasPrivateKey: !!walletFromDb?.privateKey
+      });
       
       // Если нашли существующий кошелек
       if (walletFromDb) {
@@ -91,12 +102,12 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
         const walletData = {
           address: walletFromDb.address,
           publicKey: walletFromDb.publicKey,
-          secretKey: walletFromDb.privateKey // Используем приватный ключ из БД
+          secretKey: walletFromDb.privateKey
         };
 
         // Сохраняем в локальное хранилище для кэширования
         await localforage.setItem('wallet', walletData);
-        console.log('=== Кошелек успешно получен ===');
+        console.log('=== Кошелек успешно получен и сохранен в кэш ===');
         
         return walletData;
       }
@@ -105,11 +116,13 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       console.log('=== Создание нового кошелька ===');
       const seed = await getSecureRandomBytes(32);
       const keyPair = keyPairFromSeed(seed);
+      console.log('Сгенерированы новые ключи');
 
       const wallet = WalletContractV4.create({
         publicKey: keyPair.publicKey,
         workchain: 0
       });
+      console.log('Создан экземпляр кошелька:', wallet.address.toString());
 
       const walletData = {
         address: wallet.address.toString(),
@@ -117,6 +130,7 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
         secretKey: Buffer.from(keyPair.secretKey).toString('hex')
       };
 
+      console.log('Отправляем данные в БД...');
       // Сохраняем все данные в базу
       const createResponse = await fetch('/api/wallet', {
         method: 'POST',
@@ -127,12 +141,15 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
         body: JSON.stringify({
           address: walletData.address,
           publicKey: walletData.publicKey,
-          privateKey: walletData.secretKey // Сохраняем приватный ключ
+          privateKey: walletData.secretKey
         })
       });
 
+      console.log('Статус создания кошелька:', createResponse.status);
+      
       if (!createResponse.ok) {
         const error = await createResponse.json();
+        console.error('Ошибка создания кошелька:', error);
         throw new Error(error.error || 'Ошибка создания кошелька');
       }
 
@@ -247,7 +264,7 @@ export async function getBalance(addressStr: string): Promise<{
     console.log('Запрашиваем баланс USDT...');
     const usdtBalance = await getUSDTBalance(address);
     console.log('Баланс в USDT:', usdtBalance);
-
+    
     // Получаем баланс Earth
     console.log('Запрашиваем баланс Earth...');
     const earthBalance = await getEarthBalance(address);
@@ -480,9 +497,9 @@ async function sendToken(
         secretKey: Buffer.from(walletData.secretKey, 'hex'),
         seqno: seqno,
         messages: [
-          internal({
+      internal({
             to: toAddress,
-            value: toNano(amount.toString()),
+        value: toNano(amount.toString()),
             bounce: true,
             body: ''
           })
@@ -523,7 +540,7 @@ async function sendToken(
         secretKey: Buffer.from(walletData.secretKey, 'hex'),
         seqno: seqno,
         messages: [
-          internal({
+        internal({
             to: jettonWallet,
             value: toNano(networkFee.toString()),
             bounce: true,

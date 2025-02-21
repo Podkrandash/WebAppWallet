@@ -75,15 +75,19 @@ export async function POST(request: Request) {
         data: {
           address: body.address,
           publicKey: body.publicKey,
+          privateKey: body.privateKey,
           userId: user.id,
-          privateKey: '',
           balance: 0,
           usdtBalance: 0,
           earthBalance: 0
         }
       });
 
-      return NextResponse.json(wallet);
+      return NextResponse.json({
+        address: wallet.address,
+        publicKey: wallet.publicKey,
+        privateKey: wallet.privateKey
+      });
     } 
     // Если это запрос на создание транзакции
     else if (body.type && body.amount) {
