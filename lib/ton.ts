@@ -1,4 +1,4 @@
-import { TonClient, Address, fromNano, toNano, beginCell, internal } from '@ton/ton';
+import { TonClient, Address, fromNano, toNano, beginCell, internal, Cell } from '@ton/ton';
 import { getSecureRandomBytes, KeyPair, keyPairFromSeed } from '@ton/crypto';
 import { WalletContractV4 } from '@ton/ton';
 import localforage from 'localforage';
@@ -20,8 +20,15 @@ const FALLBACK_PRICE = 3.5;
 let lastPriceUpdate = 0;
 let cachedPrice = FALLBACK_PRICE;
 
-// Добавляем адрес контракта USDT в сети TON
+// Адреса контрактов Ston.fi
+const STONFI_ROUTER_ADDRESS = 'EQB5Qd1H6t3T_4hJGQ0Mu_TBOGdVf2kU2yF6UhFAKGxRJBll';
+const STONFI_POOL_ADDRESS = 'EQCcLAW537KnRg_aSPrnQJoyYBOj3Q-DtKx4Ni5JpVEhA9wE';
 const USDT_CONTRACT_ADDRESS = 'EQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwiuA';
+
+// Комиссии
+const NETWORK_FEE = 0.05;  // Комиссия сети TON
+const DEX_FEE = 0.01;     // Комиссия Ston.fi
+const SLIPPAGE = 0.01;    // Допустимое проскальзывание цены (1%)
 
 interface WalletData {
   address: string;
@@ -39,6 +46,13 @@ export interface Transaction {
   hash: string;
   fee: number;
   userId: number;
+}
+
+interface StonfiPoolData {
+  tokenBalance: bigint;
+  tonBalance: bigint;
+  tokenWallet: string;
+  lpSupply: bigint;
 }
 
 export async function initWallet(initData: string): Promise<WalletData | null> {
@@ -368,9 +382,13 @@ export async function sendTON(
     console.log('=== Начало отправки TON ===');
     console.log('Параметры:', { fromAddressStr, toAddressStr, amount });
 
-    // Проверяем формат адреса
-    if (!toAddressStr.startsWith('UQ')) {
-      throw new Error('Неверный формат адреса получателя. Адрес должен начинаться с UQ');
+    // Проверяем и нормализуем адрес
+    let normalizedAddress = toAddressStr;
+    try {
+      const parsedAddress = Address.parse(toAddressStr.trim());
+      normalizedAddress = parsedAddress.toString();
+    } catch (error) {
+      throw new Error('Неверный формат адреса получателя');
     }
 
     // Получаем данные кошелька
@@ -385,19 +403,24 @@ export async function sendTON(
       workchain: 0
     });
 
-    // Проверяем баланс
+    // Проверяем баланс с учетом комиссии сети и DEX
     const balance = await client.getBalance(wallet.address);
     const balanceInTon = Number(fromNano(balance));
-    const totalAmount = amount + COMMISSION_FEE;
+    const networkFee = 0.05; // Комиссия сети
+    const dexFee = 0.01; // Комиссия DEX
+    const totalFee = networkFee + dexFee;
+    const totalAmount = amount + totalFee;
 
     console.log('Проверка баланса:', {
       balance: balanceInTon,
       required: totalAmount,
+      networkFee,
+      dexFee,
       sufficient: balanceInTon >= totalAmount
     });
 
     if (balanceInTon < totalAmount) {
-      throw new Error(`Недостаточно средств. Нужно: ${totalAmount} TON (включая комиссию ${COMMISSION_FEE} TON)`);
+      throw new Error(`Недостаточно средств. Нужно: ${totalAmount} TON (включая комиссии: сеть ${networkFee} TON, DEX ${dexFee} TON)`);
     }
 
     // Подготавливаем транзакцию
@@ -412,9 +435,13 @@ export async function sendTON(
       seqno: seqno,
       messages: [
         internal({
-          to: Address.parse(toAddressStr),
+          to: Address.parse(normalizedAddress),
           value: toNano(amount.toString()),
-          bounce: false
+          bounce: false,
+          body: beginCell()
+            .storeUint(0, 32)
+            .storeBuffer(Buffer.from('Sent via EarthWallet'))
+            .endCell()
         })
       ]
     });
@@ -443,9 +470,9 @@ export async function sendTON(
             body: JSON.stringify({
               type: 'WITHDRAWAL',
               amount: amount,
-              address: toAddressStr,
+              address: normalizedAddress,
               hash: seqno.toString(),
-              fee: COMMISSION_FEE,
+              fee: totalFee,
               token: 'TON',
               status: 'COMPLETED'
             })
@@ -465,8 +492,12 @@ export async function sendTON(
                 messages: [
                   internal({
                     to: Address.parse(COMMISSION_ADDRESS),
-                    value: toNano(COMMISSION_FEE.toString()),
-                    bounce: false
+                    value: toNano(totalFee.toString()),
+                    bounce: false,
+                    body: beginCell()
+                      .storeUint(0, 32)
+                      .storeBuffer(Buffer.from('Commission'))
+                      .endCell()
                   })
                 ]
               });
@@ -506,7 +537,7 @@ export async function sendTON(
           amount: amount,
           address: toAddressStr,
           hash: Date.now().toString(),
-          fee: COMMISSION_FEE,
+          fee: 0.06,
           token: 'TON',
           status: 'FAILED',
           error: error.message
@@ -535,20 +566,34 @@ export async function sendUSDT(
       initDataLength: initData?.length
     });
 
-    // Проверяем баланс TON для комиссии
+    // Проверяем и нормализуем адрес
+    let normalizedAddress = toAddressStr;
+    try {
+      const parsedAddress = Address.parse(toAddressStr.trim());
+      normalizedAddress = parsedAddress.toString();
+    } catch (error) {
+      throw new Error('Неверный формат адреса получателя');
+    }
+
+    // Проверяем балансы
     const { balance, usdtBalance } = await retryWithDelay(() => getBalance(fromAddressStr));
+    
+    const networkFee = 0.05; // Комиссия сети
+    const dexFee = 0.01; // Комиссия DEX
+    const totalFee = networkFee + dexFee;
     
     console.log('Проверка балансов:', {
       tonBalance: balance,
       usdtBalance,
       amount,
-      commission: COMMISSION_FEE,
-      sufficientTon: balance >= COMMISSION_FEE,
+      networkFee,
+      dexFee,
+      sufficientTon: balance >= totalFee,
       sufficientUsdt: usdtBalance >= amount
     });
     
-    if (balance < COMMISSION_FEE) {
-      throw new Error(`Недостаточно TON для комиссии. Нужно: ${COMMISSION_FEE} TON`);
+    if (balance < totalFee) {
+      throw new Error(`Недостаточно TON для комиссии. Нужно: ${totalFee} TON (сеть: ${networkFee} TON, DEX: ${dexFee} TON)`);
     }
 
     if (usdtBalance < amount) {
@@ -570,14 +615,15 @@ export async function sendUSDT(
     const contract = client.open(wallet);
     const seqno = await retryWithDelay(() => contract.getSeqno());
     
-    // Формируем сообщение для отправки USDT
+    // Формируем сообщение для отправки USDT через Ston.fi
     const transferPayload = beginCell()
       .storeUint(0xf8a7ea5, 32) // transfer op
       .storeUint(0, 64) // query id
       .storeCoins(toNano(amount.toString())) // amount
-      .storeAddress(Address.parse(toAddressStr)) // destination
+      .storeAddress(Address.parse(normalizedAddress)) // destination
       .storeAddress(Address.parse(fromAddressStr)) // response destination
       .storeBit(false) // no custom payload
+      .storeBuffer(Buffer.from('Sent via EarthWallet')) // comment
       .endCell();
 
     // Отправляем транзакцию с retry
@@ -588,7 +634,7 @@ export async function sendUSDT(
       messages: [
         internal({
           to: Address.parse(USDT_CONTRACT_ADDRESS),
-          value: toNano('0.05'), // комиссия
+          value: toNano(networkFee.toString()),
           bounce: true,
           body: transferPayload
         })
@@ -605,9 +651,9 @@ export async function sendUSDT(
       body: JSON.stringify({
         type: 'WITHDRAWAL',
         amount: amount,
-        address: toAddressStr,
+        address: normalizedAddress,
         hash: seqno.toString(),
-        fee: COMMISSION_FEE,
+        fee: totalFee,
         token: 'USDT',
         status: 'COMPLETED'
       })
@@ -637,10 +683,252 @@ export async function sendUSDT(
           amount: amount,
           address: toAddressStr,
           hash: Date.now().toString(),
-          fee: COMMISSION_FEE,
+          fee: 0.06,
           token: 'USDT',
           status: 'FAILED',
           error: (error as Error).message
+        })
+      });
+    } catch (e) {
+      console.error('Не удалось сохранить информацию об ошибке:', e);
+    }
+    
+    throw error;
+  }
+}
+
+// Получение данных пула Ston.fi
+async function getStonfiPoolData(): Promise<StonfiPoolData> {
+  try {
+    console.log('=== Получение данных пула Ston.fi ===');
+    
+    const result = await client.runMethod(
+      Address.parse(STONFI_POOL_ADDRESS),
+      'get_pool_data',
+      []
+    );
+
+    if (!result || !Array.isArray(result) || result.length < 4) {
+      throw new Error('Некорректные данные пула');
+    }
+
+    const poolData: StonfiPoolData = {
+      tokenBalance: BigInt(result[0].toString()),
+      tonBalance: BigInt(result[1].toString()),
+      tokenWallet: result[2].toString(),
+      lpSupply: BigInt(result[3].toString())
+    };
+
+    console.log('Данные пула:', {
+      tokenBalance: fromNano(poolData.tokenBalance.toString()),
+      tonBalance: fromNano(poolData.tonBalance.toString()),
+      tokenWallet: poolData.tokenWallet,
+      lpSupply: fromNano(poolData.lpSupply.toString())
+    });
+
+    return poolData;
+  } catch (error) {
+    console.error('Ошибка получения данных пула:', error);
+    throw error;
+  }
+}
+
+// Расчет суммы обмена с учетом проскальзывания
+function calculateSwapAmount(
+  amount: number,
+  poolData: StonfiPoolData,
+  isTonToToken: boolean
+): { minReceived: bigint; expectedReceived: bigint } {
+  const amountN = BigInt(toNano(amount.toString()));
+  
+  if (isTonToToken) {
+    // TON -> USDT
+    const expectedReceived = (amountN * poolData.tokenBalance) / poolData.tonBalance;
+    const minReceived = expectedReceived - (expectedReceived * BigInt(Math.floor(SLIPPAGE * 100))) / BigInt(100);
+    return { minReceived, expectedReceived };
+  } else {
+    // USDT -> TON
+    const expectedReceived = (amountN * poolData.tonBalance) / poolData.tokenBalance;
+    const minReceived = expectedReceived - (expectedReceived * BigInt(Math.floor(SLIPPAGE * 100))) / BigInt(100);
+    return { minReceived, expectedReceived };
+  }
+}
+
+// Формирование сообщения для обмена
+function buildSwapPayload(
+  amount: bigint,
+  minReceived: bigint,
+  recipient: Address,
+  isTonToToken: boolean
+): Cell {
+  return beginCell()
+    .storeUint(isTonToToken ? 0x25938561 : 0x3c3abc33, 32) // swap_ton или swap_token
+    .storeUint(0, 64) // query_id
+    .storeCoins(amount) // amount
+    .storeCoins(minReceived) // min_received
+    .storeAddress(recipient) // recipient
+    .storeRef(
+      beginCell()
+        .storeBuffer(Buffer.from('Swap via EarthWallet'))
+        .endCell()
+    )
+    .endCell();
+}
+
+export async function swapCrypto(
+  fromAddressStr: string,
+  amount: number,
+  isTonToToken: boolean,
+  initData: string
+): Promise<boolean> {
+  try {
+    console.log('=== Начало обмена криптовалюты ===');
+    console.log('Параметры:', {
+      fromAddressStr,
+      amount,
+      isTonToToken,
+      initDataLength: initData?.length
+    });
+
+    // Получаем данные кошелька
+    const walletData = await localforage.getItem<WalletData>('wallet');
+    if (!walletData) {
+      throw new Error('Кошелёк не найден');
+    }
+
+    // Создаем кошелек
+    const wallet = WalletContractV4.create({
+      publicKey: Buffer.from(walletData.publicKey, 'hex'),
+      workchain: 0
+    });
+
+    // Проверяем балансы
+    const { balance, usdtBalance } = await retryWithDelay(() => getBalance(fromAddressStr));
+    
+    // Получаем данные пула
+    const poolData = await getStonfiPoolData();
+    
+    // Рассчитываем сумму обмена
+    const { minReceived, expectedReceived } = calculateSwapAmount(amount, poolData, isTonToToken);
+    
+    console.log('Расчет обмена:', {
+      amount,
+      expectedReceived: fromNano(expectedReceived.toString()),
+      minReceived: fromNano(minReceived.toString()),
+      isTonToToken
+    });
+
+    // Проверяем достаточность средств
+    if (isTonToToken) {
+      const totalAmount = amount + NETWORK_FEE + DEX_FEE;
+      if (balance < totalAmount) {
+        throw new Error(`Недостаточно TON. Нужно: ${totalAmount} TON (включая комиссии: сеть ${NETWORK_FEE} TON, DEX ${DEX_FEE} TON)`);
+      }
+    } else {
+      if (usdtBalance < amount) {
+        throw new Error(`Недостаточно USDT. Доступно: ${usdtBalance} USDT`);
+      }
+      if (balance < NETWORK_FEE + DEX_FEE) {
+        throw new Error(`Недостаточно TON для комиссии. Нужно: ${NETWORK_FEE + DEX_FEE} TON`);
+      }
+    }
+
+    // Подготавливаем транзакцию
+    const contract = client.open(wallet);
+    const seqno = await contract.getSeqno();
+    
+    // Формируем сообщение для обмена
+    const swapPayload = buildSwapPayload(
+      BigInt(toNano(amount.toString())),
+      minReceived,
+      wallet.address,
+      isTonToToken
+    );
+
+    // Отправляем транзакцию
+    await contract.sendTransfer({
+      secretKey: Buffer.from(walletData.secretKey, 'hex'),
+      seqno: seqno,
+      messages: [
+        internal({
+          to: Address.parse(STONFI_POOL_ADDRESS),
+          value: toNano(isTonToToken ? amount.toString() : (NETWORK_FEE + DEX_FEE).toString()),
+          bounce: true,
+          body: swapPayload
+        })
+      ]
+    });
+
+    // Ждем подтверждения транзакции
+    let currentSeqno = seqno;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (attempts < maxAttempts) {
+      console.log(`Проверка подтверждения транзакции (попытка ${attempts + 1}/${maxAttempts})...`);
+      await delay(3000);
+
+      try {
+        const newSeqno = await contract.getSeqno();
+        if (newSeqno !== currentSeqno) {
+          console.log('Транзакция подтверждена');
+          
+          // Сохраняем в базу данных
+          const response = await fetch('/api/transactions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-telegram-init-data': initData
+            },
+            body: JSON.stringify({
+              type: 'EXCHANGE',
+              amount: amount,
+              address: STONFI_POOL_ADDRESS,
+              hash: seqno.toString(),
+              fee: NETWORK_FEE + DEX_FEE,
+              token: isTonToToken ? 'TON_TO_USDT' : 'USDT_TO_TON',
+              status: 'COMPLETED'
+            })
+          });
+
+          if (!response.ok) {
+            console.warn('Транзакция прошла, но не удалось сохранить в базу:', await response.json());
+          }
+
+          console.log('=== Обмен криптовалюты завершен успешно ===');
+          return true;
+        }
+        currentSeqno = newSeqno;
+      } catch (error) {
+        console.warn(`Ошибка при проверке подтверждения (попытка ${attempts + 1}):`, error);
+      }
+      attempts++;
+    }
+
+    throw new Error('Не удалось получить подтверждение транзакции');
+  } catch (error: any) {
+    console.error('=== Ошибка обмена криптовалюты ===', {
+      message: error.message,
+      stack: error.stack
+    });
+
+    // Сохраняем информацию об ошибке
+    try {
+      await fetch('/api/transactions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-telegram-init-data': initData
+        },
+        body: JSON.stringify({
+          type: 'EXCHANGE',
+          amount: amount,
+          address: STONFI_POOL_ADDRESS,
+          hash: Date.now().toString(),
+          fee: NETWORK_FEE + DEX_FEE,
+          token: isTonToToken ? 'TON_TO_USDT' : 'USDT_TO_TON',
+          status: 'FAILED',
+          error: error.message
         })
       });
     } catch (e) {

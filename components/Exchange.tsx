@@ -1,7 +1,7 @@
 import { Box, Text, Paper, Stack, NumberInput, Button, Group, SegmentedControl, ActionIcon } from '@mantine/core';
-import { IconArrowRight, IconArrowsExchange } from '@tabler/icons-react';
+import { IconArrowsExchange } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
-import { getBalance } from '../lib/ton';
+import { swapCrypto } from '../lib/ton';
 
 interface ExchangeProps {
   balance: number;
@@ -21,11 +21,9 @@ export default function Exchange({
   onBack
 }: ExchangeProps) {
   const [fromCrypto, setFromCrypto] = useState<CryptoType>('TON');
-  const [toCrypto, setToCrypto] = useState<CryptoType>('USDT');
   const [amount, setAmount] = useState<number | ''>(0);
   const [exchanging, setExchanging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [rate, setRate] = useState<number>(0);
 
   useEffect(() => {
     // Показываем кнопку назад в Telegram WebApp
@@ -42,32 +40,6 @@ export default function Exchange({
     };
   }, [onBack]);
 
-  // Получаем курс обмена
-  useEffect(() => {
-    const fetchRate = async () => {
-      try {
-        const response = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=the-open-network,tether&vs_currencies=usd'
-        );
-        const data = await response.json();
-        const tonPrice = data['the-open-network'].usd;
-        const usdtPrice = data['tether'].usd;
-        setRate(tonPrice / usdtPrice);
-      } catch (error) {
-        console.error('Ошибка получения курса:', error);
-        setRate(3.5); // Фоллбэк значение
-      }
-    };
-    fetchRate();
-  }, [fromCrypto, toCrypto]);
-
-  const handleSwap = () => {
-    const temp = fromCrypto;
-    setFromCrypto(toCrypto);
-    setToCrypto(temp);
-    setAmount(0);
-  };
-
   const handleExchange = async () => {
     if (!amount) {
       setError('Введите сумму');
@@ -78,27 +50,31 @@ export default function Exchange({
       setExchanging(true);
       setError(null);
 
-      // TODO: Интеграция с DEX для обмена
-      console.log('Обмен:', {
-        from: fromCrypto,
-        to: toCrypto,
-        amount: amount
-      });
+      const isTonToToken = fromCrypto === 'TON';
+      await swapCrypto(address, Number(amount), isTonToToken, initData);
 
       if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.showAlert('Функция обмена находится в разработке');
+        window.Telegram.WebApp.showAlert(
+          `Обмен успешно выполнен\n\nСумма: ${amount} ${fromCrypto}\nПолучите: ${fromCrypto === 'TON' ? 'USDT' : 'TON'}`
+        );
       }
+      onBack();
     } catch (error: any) {
       console.error('Ошибка обмена:', error);
       setError(error.message);
+      
+      if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.showAlert('Ошибка: ' + error.message);
+      }
     } finally {
       setExchanging(false);
     }
   };
 
   const fromBalance = fromCrypto === 'TON' ? balance : usdtBalance;
-  const toBalance = toCrypto === 'TON' ? balance : usdtBalance;
-  const estimatedReceive = amount ? Number(amount) * (fromCrypto === 'TON' ? rate : 1/rate) : 0;
+  const networkFee = 0.05;
+  const dexFee = 0.01;
+  const totalFee = networkFee + dexFee;
 
   return (
     <Box style={{ 
@@ -109,9 +85,8 @@ export default function Exchange({
       <Stack gap="md">
         <Paper p="xl" radius="lg" style={{ background: 'white' }}>
           <Stack gap="xl">
-            <Text size="xl" fw={700} ta="center">Обмен криптовалют</Text>
+            <Text size="xl" fw={700} ta="center">Обмен {fromCrypto} на {fromCrypto === 'TON' ? 'USDT' : 'TON'}</Text>
 
-            {/* From */}
             <Stack gap="md">
               <Group justify="apart">
                 <Text size="sm" fw={500}>Отдаёте</Text>
@@ -125,7 +100,7 @@ export default function Exchange({
                   value={amount}
                   onChange={(value) => setAmount(typeof value === 'string' ? parseFloat(value) || 0 : value)}
                   min={0}
-                  max={fromBalance}
+                  max={fromBalance - (fromCrypto === 'TON' ? totalFee : 0)}
                   decimalScale={fromCrypto === 'TON' ? 2 : 6}
                   placeholder="0.00"
                   size="xl"
@@ -142,57 +117,10 @@ export default function Exchange({
                 />
                 <SegmentedControl
                   value={fromCrypto}
-                  onChange={(value: string) => setFromCrypto(value as CryptoType)}
-                  data={[
-                    { label: 'TON', value: 'TON' },
-                    { label: 'USDT', value: 'USDT' }
-                  ]}
-                />
-              </Group>
-            </Stack>
-
-            {/* Swap button */}
-            <Group justify="center">
-              <ActionIcon 
-                variant="light"
-                color="blue"
-                size="xl"
-                onClick={handleSwap}
-              >
-                <IconArrowsExchange size={24} />
-              </ActionIcon>
-            </Group>
-
-            {/* To */}
-            <Stack gap="md">
-              <Group justify="apart">
-                <Text size="sm" fw={500}>Получите (примерно)</Text>
-                <Text size="sm" c="dimmed">
-                  Баланс: {toBalance.toFixed(toCrypto === 'TON' ? 2 : 6)} {toCrypto}
-                </Text>
-              </Group>
-              
-              <Group align="flex-end" gap="sm">
-                <NumberInput
-                  value={estimatedReceive}
-                  readOnly
-                  decimalScale={toCrypto === 'TON' ? 2 : 6}
-                  placeholder="0.00"
-                  size="xl"
-                  style={{ flex: 1 }}
-                  styles={{
-                    input: {
-                      fontSize: '24px',
-                      height: '56px',
-                      background: 'rgba(0, 0, 0, 0.03)',
-                      border: 'none',
-                      borderRadius: '12px'
-                    }
+                  onChange={(value: string) => {
+                    setFromCrypto(value as CryptoType);
+                    setAmount(0);
                   }}
-                />
-                <SegmentedControl
-                  value={toCrypto}
-                  onChange={(value: string) => setToCrypto(value as CryptoType)}
                   data={[
                     { label: 'TON', value: 'TON' },
                     { label: 'USDT', value: 'USDT' }
@@ -209,7 +137,9 @@ export default function Exchange({
 
             <Stack gap="md">
               <Text size="sm" c="dimmed" ta="center">
-                Курс обмена: 1 TON = {rate.toFixed(2)} USDT
+                Комиссия сети: {networkFee} TON
+                <br />
+                Комиссия DEX: {dexFee} TON
               </Text>
 
               <Button

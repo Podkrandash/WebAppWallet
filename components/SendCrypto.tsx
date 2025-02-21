@@ -28,7 +28,6 @@ export default function SendCrypto({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Показываем кнопку назад в Telegram WebApp
     if (window.Telegram?.WebApp?.BackButton) {
       window.Telegram.WebApp.BackButton.show();
       window.Telegram.WebApp.BackButton.onClick(onBack);
@@ -49,15 +48,8 @@ export default function SendCrypto({
     }
 
     try {
-      // Проверяем initData
       if (!initData) {
         setError('Ошибка инициализации. Попробуйте перезапустить приложение');
-        return;
-      }
-
-      // Проверяем формат initData
-      if (!initData.includes('hash=') || !initData.includes('user=')) {
-        setError('Ошибка инициализации Telegram WebApp. Попробуйте перезапустить приложение');
         return;
       }
 
@@ -102,23 +94,10 @@ export default function SendCrypto({
         stack: error.stack
       });
       
-      // Форматируем сообщение об ошибке для пользователя
-      let errorMessage = error.message;
-      
-      if (errorMessage.includes('Недостаточно средств')) {
-        errorMessage = `Недостаточно ${selectedCrypto} для отправки. Проверьте баланс и сумму комиссии.`;
-      } else if (errorMessage.includes('Неверный формат адреса')) {
-        errorMessage = 'Неверный формат адреса TON';
-      } else if (errorMessage.includes('429')) {
-        errorMessage = 'Слишком много запросов. Пожалуйста, подождите немного и попробуйте снова.';
-      } else if (errorMessage.includes('500')) {
-        errorMessage = 'Произошла ошибка на сервере. Пожалуйста, попробуйте позже.';
-      }
-      
-      setError(errorMessage);
+      setError(error.message);
       
       if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.showAlert('Ошибка: ' + errorMessage);
+        window.Telegram.WebApp.showAlert('Ошибка: ' + error.message);
       }
     } finally {
       setSending(false);
@@ -126,30 +105,9 @@ export default function SendCrypto({
   };
 
   const currentBalance = selectedCrypto === 'TON' ? balance : usdtBalance;
-  const commissionInTon = 0.05;
-
-  const handleAmountChange = (value: string | number) => {
-    if (typeof value === 'string') {
-      // Разрешаем только цифры и одну точку
-      const sanitizedValue = value.replace(/[^\d.]/g, '');
-      const parts = sanitizedValue.split('.');
-      
-      // Если больше одной точки, оставляем только первую
-      if (parts.length > 2) {
-        parts.splice(2);
-      }
-      
-      // Ограничиваем количество знаков после точки
-      if (parts[1]?.length > 6) {
-        parts[1] = parts[1].slice(0, 6);
-      }
-      
-      const finalValue = parts.join('.');
-      setAmount(finalValue === '' ? 0 : parseFloat(finalValue));
-    } else {
-      setAmount(value);
-    }
-  };
+  const networkFee = 0.05;
+  const dexFee = 0.01;
+  const totalFee = networkFee + dexFee;
 
   return (
     <Box style={{ 
@@ -162,7 +120,11 @@ export default function SendCrypto({
           <Stack gap="xl">
             <SegmentedControl
               value={selectedCrypto}
-              onChange={(value) => setSelectedCrypto(value as CryptoType)}
+              onChange={(value: string) => {
+                setSelectedCrypto(value as CryptoType);
+                setAmount(0);
+                setError(null);
+              }}
               data={[
                 {
                   label: (
@@ -211,7 +173,7 @@ export default function SendCrypto({
               <Stack gap={4} align="center">
                 <Text size="xl" fw={700}>{selectedCrypto}</Text>
                 <Text size="sm" c="dimmed">
-                  Доступно: {(currentBalance - (selectedCrypto === 'TON' ? commissionInTon : 0)).toFixed(selectedCrypto === 'TON' ? 2 : 6)} {selectedCrypto}
+                  Доступно: {(currentBalance - (selectedCrypto === 'TON' ? totalFee : 0)).toFixed(selectedCrypto === 'TON' ? 2 : 6)} {selectedCrypto}
                 </Text>
               </Stack>
             </Group>
@@ -219,7 +181,7 @@ export default function SendCrypto({
             <TextInput
               label="Адрес получателя"
               placeholder="Введите адрес TON"
-              description="Например: UQDB261B0BQdjr7hZlnmPKPH3iH5XZkfKQklf6GvbEErjuUT"
+              description="Например: EQBvW8Z5huBkMJYdnfAEM5JqTNkuWX3diqYENkWsIL0XggGG"
               value={recipientAddress}
               onChange={(e) => {
                 const value = e.target.value;
@@ -263,10 +225,10 @@ export default function SendCrypto({
               label="Сумма"
               placeholder="0.00"
               value={amount}
-              onChange={handleAmountChange}
+              onChange={(value) => setAmount(typeof value === 'string' ? parseFloat(value) || 0 : value)}
               min={0}
-              max={selectedCrypto === 'TON' ? balance : usdtBalance}
-              decimalScale={6}
+              max={currentBalance - (selectedCrypto === 'TON' ? totalFee : 0)}
+              decimalScale={selectedCrypto === 'TON' ? 2 : 6}
               hideControls
               error={error && !amount ? 'Введите сумму' : null}
               size="xl"
@@ -300,7 +262,9 @@ export default function SendCrypto({
 
             <Stack gap="md">
               <Text size="sm" c="dimmed" ta="center">
-                Комиссия сети: {commissionInTon} TON
+                Комиссия сети: {networkFee} TON
+                <br />
+                Комиссия DEX: {dexFee} TON
               </Text>
 
               <Button
