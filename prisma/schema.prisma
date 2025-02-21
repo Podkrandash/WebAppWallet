@@ -27,6 +27,7 @@ enum TransactionStatus {
 enum TokenType {
   TON
   USDT
+  EARTH
 }
 
 model User {
@@ -49,6 +50,7 @@ model Wallet {
   encryptedKey String?
   balance      Float    @default(0)
   usdtBalance  Float    @default(0)
+  earthBalance Float    @default(0)
   user         User     @relation(fields: [userId], references: [id])
   userId       Int
   createdAt    DateTime @default(now())

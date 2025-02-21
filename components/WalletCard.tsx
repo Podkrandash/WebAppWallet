@@ -1,5 +1,5 @@
 import { Box, Text, Button, Group, CopyButton, Stack, ActionIcon, SimpleGrid, Paper, Modal, TextInput, NumberInput } from '@mantine/core';
-import { IconSend, IconDownload, IconQrcode, IconCopy, IconArrowsExchange, IconCoin, IconLock } from '@tabler/icons-react';
+import { IconSend, IconDownload, IconQrcode, IconCopy, IconArrowsExchange, IconCoin, IconLock, IconArrowRight } from '@tabler/icons-react';
 import { useState } from 'react';
 import { sendTON } from '../lib/ton';
 import { TonDetails } from './TonDetails';
@@ -7,6 +7,8 @@ import SendCrypto from './SendCrypto';
 import UsdtDetails from './UsdtDetails';
 import Exchange from './Exchange';
 import QrScanner from './QrScanner';
+import EarthDetails from './EarthDetails';
+import { EARTH_TOKEN_INFO } from '../lib/ton';
 
 interface Token {
   symbol: string;
@@ -25,6 +27,7 @@ interface WalletCardProps {
   initData: string;
   tonPrice?: number;
   usdtBalance: number;
+  earthBalance: number;
 }
 
 export default function WalletCard({ 
@@ -33,13 +36,15 @@ export default function WalletCard({
   address,
   initData,
   tonPrice = 0,
-  usdtBalance = 0
+  usdtBalance = 0,
+  earthBalance = 0
 }: WalletCardProps) {
   const [showTonDetails, setShowTonDetails] = useState(false);
   const [showUsdtDetails, setShowUsdtDetails] = useState(false);
   const [showSendCrypto, setShowSendCrypto] = useState(false);
   const [showExchange, setShowExchange] = useState(false);
   const [showQrScanner, setShowQrScanner] = useState(false);
+  const [showEarthDetails, setShowEarthDetails] = useState(false);
 
   // Расчет общего баланса в рублях
   const totalBalanceRub = Number(usdValue.replace(/[^\d.-]/g, '')) + (usdtBalance * 100);
@@ -78,6 +83,7 @@ export default function WalletCard({
       <SendCrypto
         balance={balance}
         usdtBalance={usdtBalance}
+        earthBalance={earthBalance}
         address={address}
         initData={initData}
         onBack={() => setShowSendCrypto(false)}
@@ -106,6 +112,16 @@ export default function WalletCard({
     );
   }
 
+  if (showEarthDetails) {
+    return (
+      <EarthDetails
+        earthBalance={earthBalance}
+        address={address}
+        onBack={() => setShowEarthDetails(false)}
+      />
+    );
+  }
+
   return (
     <Box style={{ height: '100%', position: 'relative' }}>
       <Stack gap="xl" pb={80} px="md">
@@ -127,6 +143,10 @@ export default function WalletCard({
             <Text size="lg" c="dimmed">•</Text>
             <Text size="lg" c="dimmed">
               {usdtBalance.toFixed(2)} USDT
+            </Text>
+            <Text size="lg" c="dimmed">•</Text>
+            <Text size="lg" c="dimmed">
+              {earthBalance.toFixed(2)} EARTH
             </Text>
           </Group>
           <Text size="sm" c="dimmed">
@@ -224,8 +244,7 @@ export default function WalletCard({
                     <Text fw={500}>TON</Text>
                   </Group>
                   <Group gap={4}>
-                    <Text c="dimmed"> {tonPrice.toFixed(2)} ₽</Text>
-                    <Text c="green">+0.48%</Text>
+                    <Text c="dimmed">{tonPrice.toFixed(2)} ₽</Text>
                   </Group>
                 </div>
               </Group>
@@ -274,6 +293,52 @@ export default function WalletCard({
                   {(usdtBalance * 100).toFixed(2)} ₽
                 </Text>
               </div>
+            </Group>
+          </Paper>
+
+          <Paper 
+            p="md"
+            radius="md"
+            style={{
+              background: 'rgba(255, 255, 255, 0.5)',
+              backdropFilter: 'blur(10px)',
+              cursor: 'pointer'
+            }}
+          >
+            <Group 
+              justify="space-between" 
+              align="flex-start"
+              style={{ cursor: 'pointer' }}
+              onClick={() => setShowEarthDetails(true)}
+            >
+              <Group>
+                <img 
+                  src={EARTH_TOKEN_INFO.image}
+                  alt="EARTH"
+                  style={{ 
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%'
+                  }}
+                />
+                <div>
+                  <Group gap={4}>
+                    <Text fw={500}>EARTH</Text>
+                  </Group>
+                  <Group gap={4}>
+                    <Text c="dimmed">1.00 ₽</Text>
+                  </Group>
+                </div>
+              </Group>
+              <Group>
+                <div style={{ textAlign: 'right' }}>
+                  <Text fw={500}>{earthBalance.toFixed(EARTH_TOKEN_INFO.decimals)} EARTH</Text>
+                  <Text c="dimmed">
+                    {earthBalance.toFixed(2)} ₽
+                  </Text>
+                </div>
+                <IconArrowRight size={20} color="gray" />
+              </Group>
             </Group>
           </Paper>
         </Stack>

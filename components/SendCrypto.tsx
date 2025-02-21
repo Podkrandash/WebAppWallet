@@ -1,29 +1,31 @@
 import { Box, Text, Paper, Stack, TextInput, NumberInput, Button, Group, SegmentedControl } from '@mantine/core';
 import { IconSend } from '@tabler/icons-react';
 import { useState, useEffect } from 'react';
-import { sendTON, sendUSDT } from '../lib/ton';
+import { sendTON, sendUSDT, sendEarth } from '../lib/ton';
 import { Address } from '@ton/ton';
 
 interface SendCryptoProps {
   balance: number;
   usdtBalance: number;
+  earthBalance: number;
   address: string;
   initData: string;
   onBack: () => void;
 }
 
-type CryptoType = 'TON' | 'USDT';
+type CryptoType = 'TON' | 'USDT' | 'EARTH';
 
 export default function SendCrypto({
   balance,
   usdtBalance,
+  earthBalance,
   address,
   initData,
   onBack
 }: SendCryptoProps) {
   const [selectedCrypto, setSelectedCrypto] = useState<CryptoType>('TON');
   const [recipientAddress, setRecipientAddress] = useState('');
-  const [amount, setAmount] = useState<number | ''>(0);
+  const [amount, setAmount] = useState<number | ''>('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,52 +44,55 @@ export default function SendCrypto({
   }, [onBack]);
 
   const handleSend = async () => {
-    if (!amount || !recipientAddress) {
-      setError('Заполните все поля');
+    if (!recipientAddress || !amount) {
+      if (window.Telegram?.WebApp) {
+        window.Telegram.WebApp.showAlert('Заполните все поля');
+      }
       return;
     }
 
+    setSending(true);
+    setError(null);
+    
+    console.log('=== Начало отправки транзакции ===');
+    console.log('Параметры:', {
+      type: selectedCrypto,
+      from: address,
+      to: recipientAddress,
+      amount: Number(amount)
+    });
+    
     try {
       if (!initData) {
         setError('Ошибка инициализации. Попробуйте перезапустить приложение');
         return;
       }
 
-      setSending(true);
-      setError(null);
-      
-      console.log('=== Начало отправки транзакции ===');
-      console.log('Параметры:', {
-        type: selectedCrypto,
-        from: address,
-        to: recipientAddress,
-        amount: Number(amount)
-      });
-      
-      if (selectedCrypto === 'TON') {
-        await sendTON(
-          address,
-          recipientAddress,
-          Number(amount),
-          initData
-        );
-      } else {
-        await sendUSDT(
-          address,
-          recipientAddress,
-          Number(amount),
-          initData
-        );
+      let result;
+      switch (selectedCrypto) {
+        case 'TON':
+          result = await sendTON(address, recipientAddress, Number(amount), initData);
+          break;
+        case 'USDT':
+          result = await sendUSDT(address, recipientAddress, Number(amount), initData);
+          break;
+        case 'EARTH':
+          result = await sendEarth(address, recipientAddress, Number(amount), initData);
+          break;
       }
 
       console.log('=== Транзакция успешно отправлена ===');
       
-      if (window.Telegram?.WebApp) {
-        window.Telegram.WebApp.showAlert(
-          `Транзакция успешно отправлена\n\nСумма: ${amount} ${selectedCrypto}\nПолучатель: ${recipientAddress}`
-        );
+      if (result.success) {
+        if (window.Telegram?.WebApp) {
+          window.Telegram.WebApp.showAlert('Транзакция успешно отправлена');
+        }
+        onBack();
+      } else {
+        if (window.Telegram?.WebApp) {
+          window.Telegram.WebApp.showAlert('Ошибка: ' + (result.error || 'Произошла ошибка при отправке'));
+        }
       }
-      onBack();
     } catch (error: any) {
       console.error('=== Ошибка отправки транзакции ===', {
         message: error.message,
@@ -104,11 +109,22 @@ export default function SendCrypto({
     }
   };
 
-  const currentBalance = selectedCrypto === 'TON' ? balance : usdtBalance;
+  const getCurrentBalance = () => {
+    switch (selectedCrypto) {
+      case 'TON':
+        return balance;
+      case 'USDT':
+        return usdtBalance;
+      case 'EARTH':
+        return earthBalance;
+      default:
+        return 0;
+    }
+  };
+
   const networkFee = 0.05;
-  
-  // Максимальная доступная сумма для отправки
-  const maxAvailableAmount = Math.max(0, currentBalance - networkFee);
+  const currentBalance = getCurrentBalance();
+  const maxAvailableAmount = Math.max(0, currentBalance - (selectedCrypto === 'TON' ? networkFee : 0));
 
   return (
     <Box style={{ 
@@ -152,6 +168,19 @@ export default function SendCrypto({
                     </Group>
                   ),
                   value: 'USDT'
+                },
+                {
+                  label: (
+                    <Group>
+                      <img 
+                        src="/earth-token-logo.png" 
+                        alt="EARTH"
+                        style={{ width: 20, height: 20, borderRadius: '50%' }}
+                      />
+                      <Text>EARTH</Text>
+                    </Group>
+                  ),
+                  value: 'EARTH'
                 }
               ]}
               fullWidth
@@ -160,9 +189,12 @@ export default function SendCrypto({
 
             <Group justify="center">
               <img 
-                src={selectedCrypto === 'TON' 
-                  ? "https://ton.org/download/ton_symbol.png"
-                  : "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png"
+                src={
+                  selectedCrypto === 'TON' 
+                    ? "https://ton.org/download/ton_symbol.png"
+                    : selectedCrypto === 'USDT'
+                    ? "https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png"
+                    : "/earth-token-logo.png"
                 }
                 alt={selectedCrypto}
                 style={{ 

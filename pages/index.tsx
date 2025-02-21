@@ -11,6 +11,7 @@ interface WalletData {
   address: string;
   tonPrice: number;
   usdtBalance: number;
+  earthBalance: number;
 }
 
 declare global {
@@ -105,7 +106,8 @@ export default function Home() {
               balance: balanceData.balance,
               usdValue: balanceData.usdValue,
               tonPrice: balanceData.tonPrice,
-              usdtBalance: balanceData.usdtBalance
+              usdtBalance: balanceData.usdtBalance,
+              earthBalance: balanceData.earthBalance
             });
           } catch (err) {
             console.error('Ошибка при получении данных кошелька:', err);
@@ -157,6 +159,7 @@ export default function Home() {
             initData={initData}
             tonPrice={wallet.tonPrice}
             usdtBalance={wallet.usdtBalance}
+            earthBalance={wallet.earthBalance}
           />
         )}
       </Box>
