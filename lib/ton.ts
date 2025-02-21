@@ -124,6 +124,29 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
         });
         
         try {
+          // Проверяем и нормализуем ключи
+          if (!publicKey || !secretKey) {
+            throw new Error('Отсутствуют ключи кошелька');
+          }
+
+          // Убираем префикс 0x если есть
+          publicKey = publicKey.replace('0x', '');
+          secretKey = secretKey.replace('0x', '');
+
+          // Проверяем длину ключей (32 байта = 64 символа в hex)
+          if (publicKey.length !== 64 || secretKey.length !== 64) {
+            console.error('Неверная длина ключей:', {
+              publicKeyLength: publicKey.length,
+              secretKeyLength: secretKey.length
+            });
+            throw new Error('Неверный размер ключей');
+          }
+
+          // Проверяем что ключи в hex формате
+          if (!/^[0-9a-fA-F]+$/.test(publicKey) || !/^[0-9a-fA-F]+$/.test(secretKey)) {
+            throw new Error('Ключи должны быть в hex формате');
+          }
+
           const keyPair = {
             publicKey: Buffer.from(publicKey, 'hex'),
             secretKey: Buffer.from(secretKey, 'hex')
@@ -160,11 +183,17 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       });
       console.log('Создан экземпляр кошелька:', wallet.address.toString());
 
+      // Форматируем ключи в hex без префикса 0x
       const walletData = {
         address: wallet.address.toString(),
         publicKey: Buffer.from(keyPair.publicKey).toString('hex'),
         secretKey: Buffer.from(keyPair.secretKey).toString('hex')
       };
+
+      // Проверяем длину ключей
+      if (walletData.publicKey.length !== 64 || walletData.secretKey.length !== 64) {
+        throw new Error('Ошибка генерации ключей: неверный размер');
+      }
 
       console.log('Отправляем данные в БД...');
       // Сохраняем все данные в базу
@@ -503,12 +532,26 @@ async function sendToken(
     const walletData = await localforage.getItem<WalletData>('wallet');
     if (!walletData) throw new Error('Кошелёк не найден');
 
+    // Проверяем ключи перед использованием
+    if (!walletData.publicKey || !walletData.secretKey) {
+      throw new Error('Отсутствуют ключи кошелька');
+    }
+
+    // Нормализуем ключи
+    const publicKey = walletData.publicKey.replace('0x', '');
+    const secretKey = walletData.secretKey.replace('0x', '');
+
+    // Проверяем размер ключей
+    if (publicKey.length !== 64 || secretKey.length !== 64) {
+      throw new Error('Неверный размер ключей');
+    }
+
     // Нормализуем адрес получателя
     const toAddress = Address.parse(toAddressStr);
     
-    // Создаем кошелек
+    // Создаем кошелек с проверенными ключами
     const wallet = WalletContractV4.create({
-      publicKey: Buffer.from(walletData.publicKey, 'hex'),
+      publicKey: Buffer.from(publicKey, 'hex'),
       workchain: 0
     });
     const contract = client.open(wallet);
@@ -531,7 +574,7 @@ async function sendToken(
       // Отправляем TON
       const seqno = await contract.getSeqno();
       await contract.sendTransfer({
-        secretKey: Buffer.from(walletData.secretKey, 'hex'),
+        secretKey: Buffer.from(secretKey, 'hex'),
         seqno: seqno,
         messages: [
       internal({
@@ -574,7 +617,7 @@ async function sendToken(
       // Отправляем транзакцию
       const seqno = await contract.getSeqno();
       await contract.sendTransfer({
-        secretKey: Buffer.from(walletData.secretKey, 'hex'),
+        secretKey: Buffer.from(secretKey, 'hex'),
         seqno: seqno,
         messages: [
         internal({
