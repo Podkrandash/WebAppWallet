@@ -112,11 +112,36 @@ export async function initWallet(initData: string): Promise<WalletData | null> {
       if (walletFromDb) {
         console.log('=== Получение существующего кошелька ===');
         
+        // Проверяем и форматируем ключи
+        let publicKey = walletFromDb.publicKey;
+        let secretKey = walletFromDb.privateKey;
+
+        // Убеждаемся, что ключи в правильном формате (hex)
+        if (!publicKey.match(/^[0-9a-fA-F]{64}$/)) {
+          throw new Error('Неверный формат публичного ключа');
+        }
+        if (!secretKey.match(/^[0-9a-fA-F]{64}$/)) {
+          throw new Error('Неверный формат приватного ключа');
+        }
+
         const walletData = {
           address: walletFromDb.address,
-          publicKey: walletFromDb.publicKey,
-          secretKey: walletFromDb.privateKey
+          publicKey: publicKey,
+          secretKey: secretKey
         };
+
+        // Проверяем валидность ключей
+        try {
+          const keyPair = {
+            publicKey: Buffer.from(publicKey, 'hex'),
+            secretKey: Buffer.from(secretKey, 'hex')
+          };
+          const wallet = WalletContractV4.create({ publicKey: keyPair.publicKey, workchain: 0 });
+          console.log('Кошелек успешно создан с существующими ключами');
+        } catch (e) {
+          console.error('Ошибка проверки ключей:', e);
+          throw new Error('Неверный формат ключей');
+        }
 
         // Сохраняем в локальное хранилище для кэширования
         await localforage.setItem('wallet', walletData);
