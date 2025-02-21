@@ -76,7 +76,10 @@ export async function POST(request: Request) {
           address: body.address,
           publicKey: body.publicKey,
           userId: user.id,
-          encryptedKey: ''
+          privateKey: '',
+          balance: 0,
+          usdtBalance: 0,
+          earthBalance: 0
         }
       });
 
