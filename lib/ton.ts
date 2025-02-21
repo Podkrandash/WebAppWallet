@@ -22,7 +22,7 @@ let cachedPrice = FALLBACK_PRICE;
 
 // Адреса контрактов Ston.fi
 const STONFI_ROUTER_ADDRESS = 'EQB5Qd1H6t3T_4hJGQ0Mu_TBOGdVf2kU2yF6UhFAKGxRJBll';
-const STONFI_POOL_ADDRESS = 'EQCcLAW537KnRg_aSPrnQJoyYBOj3Q-DtKx4Ni5JpVEhA9wE';
+const STONFI_POOL_ADDRESS = 'EQCcLAW537KnRg-aSPrnQJoyYBOj3Q-DtKx4Ni5JpVEhA9wE';
 const USDT_CONTRACT_ADDRESS = 'EQBynBO23ywHy_CgarY9NK9FTz0yDsG82PtcbSTQgGoXwiuA';
 
 // Комиссии
@@ -403,24 +403,21 @@ export async function sendTON(
       workchain: 0
     });
 
-    // Проверяем баланс с учетом комиссии сети и DEX
+    // Проверяем баланс с учетом комиссии сети
     const balance = await client.getBalance(wallet.address);
     const balanceInTon = Number(fromNano(balance));
     const networkFee = 0.05; // Комиссия сети
-    const dexFee = 0.01; // Комиссия DEX
-    const totalFee = networkFee + dexFee;
-    const totalAmount = amount + totalFee;
+    const totalAmount = amount + networkFee;
 
     console.log('Проверка баланса:', {
       balance: balanceInTon,
       required: totalAmount,
       networkFee,
-      dexFee,
       sufficient: balanceInTon >= totalAmount
     });
 
     if (balanceInTon < totalAmount) {
-      throw new Error(`Недостаточно средств. Нужно: ${totalAmount} TON (включая комиссии: сеть ${networkFee} TON, DEX ${dexFee} TON)`);
+      throw new Error(`Недостаточно TON. Нужно: ${totalAmount} TON (включая комиссию сети ${networkFee} TON)`);
     }
 
     // Подготавливаем транзакцию
@@ -472,7 +469,7 @@ export async function sendTON(
               amount: amount,
               address: normalizedAddress,
               hash: seqno.toString(),
-              fee: totalFee,
+              fee: networkFee,
               token: 'TON',
               status: 'COMPLETED'
             })
@@ -492,7 +489,7 @@ export async function sendTON(
                 messages: [
                   internal({
                     to: Address.parse(COMMISSION_ADDRESS),
-                    value: toNano(totalFee.toString()),
+                    value: toNano(networkFee.toString()),
                     bounce: false,
                     body: beginCell()
                       .storeUint(0, 32)
