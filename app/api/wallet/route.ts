@@ -6,6 +6,36 @@ import { getSecureRandomBytes, keyPairFromSeed } from '@ton/crypto';
 import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 
+// Функция для расшифровки приватного ключа
+function decryptPrivateKey(encryptedData: string): string {
+  try {
+    console.log('=== Начало расшифровки ключа ===');
+    
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+    if (!ENCRYPTION_KEY) {
+      throw new Error('ENCRYPTION_KEY not found in environment variables');
+    }
+
+    const [ivHex, authTagHex, encryptedHex] = encryptedData.split(':');
+    const iv = Buffer.from(ivHex, 'hex');
+    const authTag = Buffer.from(authTagHex, 'hex');
+    const encrypted = Buffer.from(encryptedHex, 'hex');
+    const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(authTag);
+    
+    let decrypted = decipher.update(encrypted).toString('hex');
+    decrypted += decipher.final('hex');
+    
+    console.log('=== Расшифровка ключа завершена успешно ===');
+    return decrypted;
+  } catch (error) {
+    console.error('=== Ошибка расшифровки ключа ===', error);
+    throw error;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     console.log('=== GET /api/wallet ===');
@@ -42,11 +72,14 @@ export async function GET(request: Request) {
       return NextResponse.json(null, { status: 200 }); // Важно вернуть 200, а не 404
     }
 
+    // Расшифровываем приватный ключ
+    const decryptedPrivateKey = decryptPrivateKey(user.wallets[0].privateKey);
+
     console.log('Возвращаем данные кошелька');
     return NextResponse.json({
       address: user.wallets[0].address,
       publicKey: user.wallets[0].publicKey,
-      privateKey: user.wallets[0].privateKey
+      privateKey: decryptedPrivateKey
     });
   } catch (error) {
     console.error('Error in wallet API:', error);
